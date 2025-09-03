@@ -29,8 +29,8 @@
         "z" z}
     msg)
   # Need to invert all the axes to match screen coordinates.
-  (def ms-x-spd (- (* z MOUSE-SPEED-SCALE)))
-  (def ms-y-spd (- (* x MOUSE-SPEED-SCALE)))
+  (def ms-x-spd ($$ - z * MOUSE-SPEED-SCALE))
+  (def ms-y-spd ($$ - x * MOUSE-SPEED-SCALE))
   (ms/start-relative-movement ms-x-spd ms-y-spd))
 
 

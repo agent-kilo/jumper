@@ -50,17 +50,17 @@
     msg)
 
   # Calculate gravity
-  (def G (math/sqrt (+ (* x x) (* y y) (* z z))))
+  (def G (math/sqrt ($$ x ** 2 + y ** 2 + z ** 2)))
 
   # Calculate longitudinal and latitudinal angles, relative to gravity.
-  (def long-angle (* 180 (/ (math/acos (/ (in msg ACCEL-LONG-AXIS) G)) math/pi)))
-  (def lat-angle  (* 180 (/ (math/acos (/ (in msg ACCEL-LAT-AXIS) G)) math/pi)))
+  (def long-angle ($$ ,(math/acos ($$ msg[ACCEL-LONG-AXIS] / G)) / math/pi * 180))
+  (def lat-angle  ($$ ,(math/acos ($$ msg[ACCEL-LAT-AXIS] / G)) / math/pi * 180))
 
   (log/debug "G = %n, long-angle = %n, lat-angle = %n" G long-angle lat-angle)
 
   # Adjust for rest position.
-  (def long (- long-angle ACCEL-LONG-REST-ANGLE))
-  (def lat  (- lat-angle ACCEL-LAT-REST-ANGLE))
+  (def long ($$ long-angle - ACCEL-LONG-REST-ANGLE))
+  (def lat  ($$ lat-angle - ACCEL-LAT-REST-ANGLE))
 
   (log/debug "long = %n, lat = %n" long lat)
 
@@ -68,28 +68,24 @@
   (def dev (vjoy/get-device ACCEL-VJOY-DEV-ID))
   (def [ax-min ax-max] (get-in dev [:controls :axes :x]))
   (def [ay-min ay-max] (get-in dev [:controls :axes :y]))
-  (def ax-half-range   (math/floor (/ (- ax-max ax-min) 2)))
-  (def ax-middle-point (math/round (/ (+ ax-max ax-min) 2)))
-  (def ay-half-range   (math/floor (/ (- ay-max ay-min) 2)))
-  (def ay-middle-point (math/round (/ (+ ay-max ay-min) 2)))
+  (def ax-half-range   (math/floor ($$ (ax-max - ax-min) / 2)))
+  (def ax-middle-point (math/round ($$ (ax-max + ax-min) / 2)))
+  (def ay-half-range   (math/floor ($$ (ay-max - ay-min) / 2)))
+  (def ay-middle-point (math/round ($$ (ay-max + ay-min) / 2)))
 
   # Convert to vJoy axis inputs.
   (def vjx
     (math/round (- ax-middle-point
-                   (* ax-half-range
-                      (/ (cond
-                           (< long (- ACCEL-LIMIT-ANGLE)) (- ACCEL-LIMIT-ANGLE)
-                           (> long ACCEL-LIMIT-ANGLE)     ACCEL-LIMIT-ANGLE
-                           true long)
-                         ACCEL-LIMIT-ANGLE)))))
+                   ($$ ,(cond
+                          (< long (- ACCEL-LIMIT-ANGLE)) (- ACCEL-LIMIT-ANGLE)
+                          (> long ACCEL-LIMIT-ANGLE)     ACCEL-LIMIT-ANGLE
+                          true long) / ACCEL-LIMIT-ANGLE * ax-half-range))))
   (def vjy
     (math/round (- ay-middle-point
-                   (* ay-half-range
-                      (/ (cond
-                           (< lat (- ACCEL-LIMIT-ANGLE)) (- ACCEL-LIMIT-ANGLE)
-                           (> lat ACCEL-LIMIT-ANGLE) ACCEL-LIMIT-ANGLE
-                           true lat)
-                         ACCEL-LIMIT-ANGLE)))))
+                   ($$ ,(cond
+                          (< lat (- ACCEL-LIMIT-ANGLE)) (- ACCEL-LIMIT-ANGLE)
+                          (> lat ACCEL-LIMIT-ANGLE) ACCEL-LIMIT-ANGLE
+                          true lat) / ACCEL-LIMIT-ANGLE * ay-half-range))))
 
   # Actually update the vJoy device.
   (vjoy/set-axis dev :x vjx)

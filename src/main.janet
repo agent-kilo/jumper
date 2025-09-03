@@ -1,5 +1,6 @@
 (import spork/json)
 (import spork/argparse)
+(import spork/infix)
 
 (import ./vjoy)
 (import ./kbd)
@@ -640,7 +641,9 @@
 
 
 (def EXPORTED-TO-CONFIG-ENV
-  @{'jumper/make-simple-moving-average-filter  (dyn 'make-simple-moving-average-filter)
+  @{'$$                                        (dyn 'infix/$$)
+
+    'jumper/make-simple-moving-average-filter  (dyn 'make-simple-moving-average-filter)
     'jumper/default-routes                     (dyn 'default-routes)
 
     'vjoy/check-device                         (dyn 'vjoy/check-device)

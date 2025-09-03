@@ -29,12 +29,12 @@
   (def {"x" x
         "y" y}
     msg)
-  (def offset (math/sqrt (+ (* x x) (* y y))))
+  (def offset (math/sqrt ($$ x ** 2 + y ** 2)))
   # Obtain vJoy axis range.
   (def [amin amax] (get-in dev [:controls :axes axis-name]))
-  (def arange (- amax amin))
+  (def arange ($$ amax - amin))
   # Convert DroidPad joystick offset to vJoy axis input.
-  (def aval (math/round (+ amin (* offset arange))))
+  (def aval (math/round ($$ amin + offset * arange)))
   (vjoy/set-axis dev axis-name aval)
   (vjoy/update dev))
 
