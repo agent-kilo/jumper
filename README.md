@@ -25,7 +25,7 @@ To run it:
 Note that steps 1 and 3 can be skipped if you don't need joystick/gamepad support.
 
 1. Download and install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases/tag/v2.2.2.0). You'll also need `SDK.zip`.
-2. Download `jumper.exe` from releases.
+2. Download `jumper.exe` from [Releases](https://github.com/agent-kilo/jumper/releases).
 3. Place `vJoyInterface.dll` from `SDK.zip` in the same directory where `jumper.exe` resides.
 4. If you have a Jumper config file, drag-and-drop it to `jumper.exe`. Otherwise, just launch `jumper.exe` directly.
 5. Configure DroidPad and connect to Jumper's listening address. (Default: `<your ip>:9876`, UDP).
