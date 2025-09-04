@@ -674,11 +674,15 @@
     'log/error                                 (dyn 'log/error)
    })
 
-(table/setproto EXPORTED-TO-CONFIG-ENV root-env)
+# This was `(table/setproto EXPORTED-TO-CONFIG-ENV root-env)`, but
+# our extra bindings were not accessible by modules imported by the
+# config file. So here we directly merge them into the root env
+# instead.
+(merge-into root-env EXPORTED-TO-CONFIG-ENV)
 
 
 (defn load-config [paths default-path]
-  (def env (make-env EXPORTED-TO-CONFIG-ENV))
+  (def env (make-env root-env))
 
   (if paths
     (each p paths
