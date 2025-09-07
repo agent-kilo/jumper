@@ -15,12 +15,12 @@
    (printf "Warning: Failed to import project-tools. Do `jpm -l deps` first?")))
 
 
-(def DEBUG-CFLAGS
+(def MSVC-DEBUG-CFLAGS
   (if (= "debug" (dyn :build-type))
     ["/Zi" (string "/Fd" (find-build-dir))]
     []))
 
-(def DEBUG-LDFLAGS
+(def MSVC-DEBUG-LDFLAGS
   (if (= "debug" (dyn :build-type))
     ["/DEBUG"]
     []))
@@ -39,6 +39,12 @@
   (string (find-build-dir) name))
 
 
+(defn all-source-in-dir [dir]
+  (->> (os/dir dir)
+       (filter |(string/has-suffix? ".janet" $))
+       (map |(string dir "/" $))))
+
+
 (defmacro gen-rule [target deps & body]
   ~(let [_target ,target
          _deps   ,deps]
@@ -49,20 +55,6 @@
 
 
 (compwhen (dyn 'util/ensure-dir)
-
- (gen-rule (generated "resource.h") ["src/resource.janet"]
-   (generate-resource-header (dofile "src/resource.janet") _target))
-
-
- (gen-rule (generated "resource.res") ["res/jumper.rc"
-                                       "res/jumper.ico"
-                                       (generated "resource.h")]
-   (util/spawn-and-wait "rc.exe" "/I" (find-build-dir) "/fo" _target (_deps 0)))
-
-
- (gen-rule (generated "resource.obj") [(generated "resource.res")]
-   (util/spawn-and-wait "cvtres.exe" "/machine:x64" (string "/out:" _target) (_deps 0)))
-
 
  (task "vcs-version" []
    (def vcs-version-file (generated "vcs-version.txt"))
@@ -90,14 +82,33 @@
        ((_err _fib) :ignore))))
 
 
+ (when (= :windows (os/which))
+   (gen-rule (generated "resource.h") ["src/resource.janet"]
+             (generate-resource-header (dofile "src/resource.janet") _target))
+
+   (gen-rule (generated "resource.res") ["res/jumper.rc"
+                                         "res/jumper.ico"
+                                         (generated "resource.h")]
+             (util/spawn-and-wait "rc.exe" "/I" (find-build-dir) "/fo" _target (_deps 0)))
+
+   (gen-rule (generated "resource.obj") [(generated "resource.res")]
+             (util/spawn-and-wait "cvtres.exe" "/machine:x64" (string "/out:" _target) (_deps 0))))
+
+
  (declare-executable
-  :name "jumper"
+  :name  "jumper"
   :entry "src/main.janet"
-  :deps [;(->> (os/dir "src")
-               (filter |(string/has-suffix? ".janet" $))
-               (map |(string "src/" $)))
-         (generated "resource.obj")]
-  :cflags  [;(dyn :cflags) ;DEBUG-CFLAGS]
-  :ldflags [(generated "resource.obj") ;DEBUG-LDFLAGS])
+  :deps  [;(all-source-in-dir "src")
+          ;(all-source-in-dir "src/backends")
+          ;(case (os/which)
+             :windows
+             [;(all-source-in-dir "src/backends/win32")
+              (generated "resource.obj")]
+             :linux
+             (all-source-in-dir "src/backends/evdev"))]
+  :cflags  (when (= :windows (os/which))
+             [;(dyn :cflags) ;MSVC-DEBUG-CFLAGS])
+  :ldflags (when (= :windows (os/which))
+             [(generated "resource.obj") ;MSVC-DEBUG-LDFLAGS]))
 
 )
