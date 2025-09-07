@@ -1,4 +1,4 @@
-(import ./log)
+(import ../../log)
 
 
 (var user32-interface nil)

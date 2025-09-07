@@ -2,9 +2,9 @@
 (import spork/argparse)
 (import spork/infix)
 
-(import ./vjoy)
-(import ./kbd)
-(import ./ms)
+(import ./backends/vjoy)
+(import ./backends/kbd)
+(import ./backends/ms)
 (import ./log)
 
 
