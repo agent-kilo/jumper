@@ -5,10 +5,18 @@
 (import ./backends/vjoy)
 (import ./backends/kbd)
 (import ./backends/ms)
+(import ./resource)
 (import ./log)
 
 
 (def DEFAULT-CONFIG-FILE-PATH "jumper-config.janet")
+
+
+(def JUMPER-VERSION
+  [resource/VERSION_MAJOR
+   resource/VERSION_MINOR
+   resource/VERSION_PATCH
+   resource/VERSION_VCS])
 
 
 (def json-decode-error-peg
@@ -701,6 +709,8 @@
 (def EXPORTED-TO-CONFIG-ENV
   @{'$$                                        (dyn 'infix/$$)
 
+    'jumper/version                            @{:value JUMPER-VERSION
+                                                 :doc "Current Jumper version.\n"}
     'jumper/make-simple-moving-average-filter  (dyn 'make-simple-moving-average-filter)
     'jumper/default-routes                     (dyn 'default-routes)
 
@@ -849,6 +859,7 @@
       :udp))
 
   (def [server-ip server-port] server-address)
+  (log/info "Jumper v%d.%d.%d (%n)" ;JUMPER-VERSION)
   (log/info "Starting %s server at %s:%d ..." server-type server-ip server-port)
   (case server-type
     :tcp

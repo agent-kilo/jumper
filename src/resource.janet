@@ -1,5 +1,7 @@
 (import spork/path)
 
+(import ./log)
+
 
 (def IDI_LOGO
   "Main logo."
@@ -29,7 +31,7 @@
   {:resource :versioninfo}
   (try
     (do
-      (def print-path |(do (printf "Reading %s for VCS version info..." $) $))
+      (def print-path |(do (log/info "Reading %s for VCS version info..." $) $))
       (def cur-file (dyn *current-file*))
       # This happens at compile-time. Should make sure the relative
       # path to build dir is correct when compiling. The actual version
