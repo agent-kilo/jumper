@@ -69,72 +69,128 @@
     [ret-arr remaining-buf]))
 
 
+(def MOUSE-MIN-X 0)
+(def MOUSE-MAX-X 65535)
+(def MOUSE-MIN-Y 0)
+(def MOUSE-MAX-Y 65535)
+
 (def DEFAULT-MOUSE-REL-STEPS 1000)
 (def DEFAULT-MOUSE-ABS-SCALE (math/sqrt 2))
 
+(def DEFAULT-MOUSE-TRACK-STEPS 1000)
+(def MOUSE-TRACK-MOVEMENT-AREA (/ (/ (- MOUSE-MAX-X MOUSE-MIN-X) 2) DEFAULT-MOUSE-TRACK-STEPS))
+
+# States for "trackball" mode
+(var ms-track-center-x (math/round (/ (+ MOUSE-MIN-X MOUSE-MAX-X) 2)))
+(var ms-track-center-y (math/round (/ (+ MOUSE-MIN-Y MOUSE-MAX-Y) 2)))
+(var ms-track-last-x 0)
+(var ms-track-last-y 0)
+
+
+(defn do-ms-rel [x y steps]
+  (ms/start-relative-movement (* x steps) (* (- y) steps)))
+
+
+(defn do-ms-abs [x y scale]
+  (def mouse-x (max MOUSE-MIN-X
+                    (min MOUSE-MAX-X
+                         (math/round (+ MOUSE-MIN-X
+                                        (* (- MOUSE-MAX-X MOUSE-MIN-X)
+                                           (/ (+ (* x scale) 1) 2)))))))
+  (def mouse-y (max MOUSE-MIN-Y
+                    (min MOUSE-MAX-Y
+                         (math/round (+ MOUSE-MIN-Y
+                                        (* (- MOUSE-MAX-Y MOUSE-MIN-Y)
+                                           (/ (+ (- (* y scale)) 1) 2)))))))
+  (ms/send-movement mouse-x mouse-y true true))
+
+
+(defn do-ms-track [x y steps]
+  # XXX: This abuses the fact that DroidPad joysticks are "virtual": they
+  # immediately snap back to (0, 0) when released. The code wouldn't work
+  # if they emulated real joysticks and emitted intermediate coordinates
+  # when moving back to the center.
+  (if (and (= x 0) (= y 0))
+    (do
+      (set ms-track-center-x
+           (max MOUSE-MIN-X
+                (min MOUSE-MAX-X
+                     (math/round (+ ms-track-center-x
+                                    (* MOUSE-TRACK-MOVEMENT-AREA
+                                       steps
+                                       ms-track-last-x))))))
+      (set ms-track-center-y
+           (max MOUSE-MIN-Y
+                (min MOUSE-MAX-Y
+                     (math/round (+ ms-track-center-y
+                                    (* MOUSE-TRACK-MOVEMENT-AREA
+                                       steps
+                                       (- ms-track-last-y)))))))
+      (log/debug "ms-track-center-x = %n, ms-track-center-y = %n"
+                 ms-track-center-x
+                 ms-track-center-y))
+    # else
+    (do
+      (def mouse-x
+        (max MOUSE-MIN-X
+             (min MOUSE-MAX-X
+                  (math/round (+ ms-track-center-x
+                                 (* MOUSE-TRACK-MOVEMENT-AREA
+                                    steps
+                                    x))))))
+      (def mouse-y
+        (max MOUSE-MIN-Y
+             (min MOUSE-MAX-Y
+                  (math/round (+ ms-track-center-y
+                                 (* MOUSE-TRACK-MOVEMENT-AREA
+                                    steps
+                                    (- y)))))))
+      (ms/send-movement mouse-x mouse-y true true)))
+
+  (set ms-track-last-x x)
+  (set ms-track-last-y y))
+
+
 (defn handle-default-joystick [msg matched route]
   (def matched-id (in matched :id))
+  (def
+    {"x" x
+     "y" y}
+    msg)
+
   (match matched-id
     ["ms" "rel" rel-steps]
-    (do
-      (def
-        {"x" x
-         "y" y}
-        msg)
-      (ms/start-relative-movement (* x rel-steps)
-                                  (* (- y) rel-steps)))
+    (do-ms-rel x y rel-steps)
 
     ["ms" "rel"]
-    (do
-      (def
-        {"x" x
-         "y" y}
-        msg)
-      (ms/start-relative-movement (* x DEFAULT-MOUSE-REL-STEPS)
-                                  (* (- y) DEFAULT-MOUSE-REL-STEPS)))
+    (do-ms-rel x y DEFAULT-MOUSE-REL-STEPS)
 
     ["ms" "abs" abs-scale]
-    (do
-      (def
-        {"x" x
-         "y" y}
-        msg)
-      (def mouse-x (max 0 (min 65535 (math/round (* 65535 (/ (+ (* x abs-scale) 1) 2))))))
-      (def mouse-y (max 0 (min 65535 (math/round (* 65535 (/ (+ (- (* y abs-scale)) 1) 2))))))
-      (ms/send-movement mouse-x mouse-y true true))
+    (do-ms-abs x y abs-scale)
 
     ["ms" "abs"]
-    (do
-      (def
-        {"x" x
-         "y" y}
-        msg)
-      (def mouse-x (max 0 (min 65535 (math/round (* 65535 (/ (+ (* x DEFAULT-MOUSE-ABS-SCALE) 1) 2))))))
-      (def mouse-y (max 0 (min 65535 (math/round (* 65535 (/ (+ (- (* y DEFAULT-MOUSE-ABS-SCALE)) 1) 2))))))
-      (ms/send-movement mouse-x mouse-y true true))
+    (do-ms-abs x y DEFAULT-MOUSE-ABS-SCALE)
+
+    ["ms" "track" track-steps]
+    (do-ms-track x y track-steps)
+
+    ["ms" "track"]
+    (do-ms-track x y DEFAULT-MOUSE-TRACK-STEPS)
 
     ["ms"]
-    (do
-      (def
-        {"x" x
-         "y" y}
-        msg)
-      (ms/start-relative-movement (* x DEFAULT-MOUSE-REL-STEPS)
-                                  (* (- y) DEFAULT-MOUSE-REL-STEPS)))
+    (do-ms-rel x y DEFAULT-MOUSE-REL-STEPS)
 
     ["vjoy" dev-id "axes" ax ay]
     (do
       (def dev (vjoy/get-device dev-id))
       (def vjx
         (unless (= ax :none)
-          (def x (in msg "x"))
           (def [ax-min ax-max] (get-in dev [:controls :axes ax]))
           (def ax-half-range (math/floor (/ (- ax-max ax-min) 2)))
           (def ax-middle-point (math/round (/ (+ ax-max ax-min) 2)))
           (math/round (+ ax-middle-point (* x ax-half-range)))))
       (def vjy
         (unless (= ay :none)
-          (def y (in msg "y"))
           (def [ay-min ay-max] (get-in dev [:controls :axes ay]))
           (def ay-half-range (math/floor (/ (- ay-max ay-min) 2)))
           (def ay-middle-point (math/round (/ (+ ay-max ay-min) 2)))
@@ -148,7 +204,6 @@
     ["vjoy" dev-id "pov" pov-id]
     (do
       (def dev (vjoy/get-device dev-id))
-      (def {"x" x "y" y} msg)
       (def ds (+ (* x x) (* y y)))
       (if (>= ds 0.04)  # d >= 0.2
         (do
@@ -375,6 +430,7 @@
   #   ms               (map to relative mouse movement)
   #   ms:rel:10        (map to relative mouse movement, with speed 10)
   #   ms:abs:1.4       (map to absolute mouse movement, with scale 1.4)
+  #   ms:track:100     (map to "trackball" mode, with speed 100)
   #   vjoy:1:axes:x,y  (map to first vjoy device, axes X and Y)
   #   vjoy:1:pov:1     (map to first vjoy device, first continuous pov hat)
   (peg/compile
@@ -385,8 +441,10 @@
      :mouse-abs-scale (replace (capture (choice (sequence :d+ (opt (sequence "." :d+)))
                                                 (sequence "." :d+))) ,scan-number)
      :mouse-abs (sequence (capture "abs") (opt (sequence ":" :mouse-abs-scale)))
+     :mouse-track-steps (replace (capture :d+) ,scan-number)
+     :mouse-track (sequence (capture "track") (opt (sequence ":" :mouse-track-steps)))
      :mouse-id (sequence (capture :mouse-prefix)
-                         (opt (sequence ":" (choice :mouse-rel :mouse-abs))))
+                         (opt (sequence ":" (choice :mouse-rel :mouse-abs :mouse-track))))
      :axis-name (choice ,;axis-names)
      :vjoy-axes (sequence (capture "axes")
                           ":"
