@@ -327,7 +327,7 @@
   (def id (in dev :id))
   (def state (in dev :state))
   (def pos-struct (in (get-vjoy-structs) 'JOYSTICK_POSITION))
-  (when (>= 0 (call-vjoy-interface 'UpdateVJD id (ffi/write pos-struct state buf)))
+  (when (>= 0 (call-vjoy-interface 'UpdateVJD id (ffi/write pos-struct state buf 0)))
     (errorf "failed to update vjoy device #%n" id)))
 
 
