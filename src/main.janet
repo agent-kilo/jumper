@@ -84,13 +84,10 @@
 
 (def DEFAULT-MOUSE-REL-STEPS 1000)
 (def DEFAULT-MOUSE-ABS-SCALE (math/sqrt 2))
-
 (def DEFAULT-MOUSE-TRACK-STEPS 1000)
-(def MOUSE-TRACK-MOVEMENT-AREA (/ (/ (- MOUSE-MAX-X MOUSE-MIN-X) 2) DEFAULT-MOUSE-TRACK-STEPS))
+(def MOUSE-TRACK-STEPS-ADJUSTMENT 0.5)
 
-# States for "trackball" mode
-(var ms-track-center-x (math/round (/ (+ MOUSE-MIN-X MOUSE-MAX-X) 2)))
-(var ms-track-center-y (math/round (/ (+ MOUSE-MIN-Y MOUSE-MAX-Y) 2)))
+# States for joystick "trackball" mode
 (var ms-track-last-x 0)
 (var ms-track-last-y 0)
 
@@ -118,43 +115,14 @@
   # immediately snap back to (0, 0) when released. The code wouldn't work
   # if they emulated real joysticks and emitted intermediate coordinates
   # when moving back to the center.
-  (if (and (= x 0) (= y 0))
-    (do
-      (set ms-track-center-x
-           (max MOUSE-MIN-X
-                (min MOUSE-MAX-X
-                     (math/round (+ ms-track-center-x
-                                    (* MOUSE-TRACK-MOVEMENT-AREA
-                                       steps
-                                       ms-track-last-x))))))
-      (set ms-track-center-y
-           (max MOUSE-MIN-Y
-                (min MOUSE-MAX-Y
-                     (math/round (+ ms-track-center-y
-                                    (* MOUSE-TRACK-MOVEMENT-AREA
-                                       steps
-                                       (- ms-track-last-y)))))))
-      (log/debug "ms-track-center-x = %n, ms-track-center-y = %n"
-                 ms-track-center-x
-                 ms-track-center-y))
-    # else
-    (do
-      (def mouse-x
-        (max MOUSE-MIN-X
-             (min MOUSE-MAX-X
-                  (math/round (+ ms-track-center-x
-                                 (* MOUSE-TRACK-MOVEMENT-AREA
-                                    steps
-                                    x))))))
-      (def mouse-y
-        (max MOUSE-MIN-Y
-             (min MOUSE-MAX-Y
-                  (math/round (+ ms-track-center-y
-                                 (* MOUSE-TRACK-MOVEMENT-AREA
-                                    steps
-                                    (- y)))))))
-      (ms/send-movement mouse-x mouse-y true true)))
-
+  (unless (and (= x 0) (= y 0))
+    (ms/send-movement (math/round (* (- x ms-track-last-x)
+                                     steps
+                                     MOUSE-TRACK-STEPS-ADJUSTMENT))
+                      (math/round (* -1
+                                     (- y ms-track-last-y)
+                                     steps
+                                     MOUSE-TRACK-STEPS-ADJUSTMENT))))
   (set ms-track-last-x x)
   (set ms-track-last-y y))
 
