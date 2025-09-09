@@ -337,11 +337,27 @@
         (errorf "unknown dpad button state: %n" (in msg "state")))
       (vjoy/update dev))
 
+    ["vjoy" dev-id "btn" & btns]
+    (do
+      (def msg-button (in msg "button"))
+      (def btn-idx
+        (find-index |(= $ msg-button) ["UP" "RIGHT" "DOWN" "LEFT"]))
+      (def btn (get-in btns [btn-idx]))
+      (unless (nil? btn)
+        (def btn-state
+          (case (in msg "state")
+            "PRESS"   true
+            "RELEASE" false
+            (errorf "unknown dpad button state: %n" (in msg "state"))))
+        (def dev (vjoy/get-device dev-id))
+        (vjoy/set-button dev btn btn-state)
+        (vjoy/update dev)))
+
     ["kbd" & keys]
     (do
-      (def button (in msg "button"))
+      (def msg-button (in msg "button"))
       (def key-idx
-        (find-index |(= $ button) ["UP" "RIGHT" "DOWN" "LEFT"]))
+        (find-index |(= $ msg-button) ["UP" "RIGHT" "DOWN" "LEFT"]))
       (def key (get-in keys [key-idx]))
       (unless (nil? key)
         (case (in msg "state")
@@ -462,6 +478,7 @@
   #   ms:btn:left     (map to left mouse button)
   #   ms:wheel:up:120 (map to moving mouse wheel up, with speed 120)
   #   vjoy:1:btn:1    (map to first vjoy device, first button)
+  #   vjoy:1:btn:trigger  (map to first vjoy device, "trigger" button)
   (peg/compile
    ~{:kbd-prefix "kbd"
      :kbd-trigger-key (capture (some 1))
@@ -490,23 +507,31 @@
                         ":"
                         (capture "btn")
                         ":"
-                        (replace (capture :d+) ,scan-number))
+                        (choice
+                         (replace (capture :d+) ,scan-number)
+                         (replace (capture (some (if-not ":" 1))) ,keyword)))
      :main (sequence (choice :kbd-id :ms-id :vjoy-id) -1)}))
 
 
 (def default-dpad-id-peg
   # ID formats:
-  #   vjoy:1:pov:1  (map to first vjoy device, first pov hat)
+  #   vjoy:1:pov:1        (map to first vjoy device, first pov hat)
+  #   vjoy:1:btn:1,2,3,4  (map to buttons of first vjoy device, starting from north, in clockwise order)
   #   kbd:ctrl+c,ctrl+v,none,ctrl+x  (map to key combos, starting from north, in clockwise order)
   (peg/compile
    ~{:vjoy-prefix "vjoy"
+     :vjoy-pov (sequence (capture "pov")
+                         ":"
+                         (replace (capture :d+) ,scan-number))
+     :vjoy-btn-id (choice
+                   (replace (capture :d+) ,scan-number)
+                   (replace (capture (some (if-not (choice ":" ",") 1))) ,keyword))
+     :vjoy-btn (sequence (capture "btn") ":" (any (sequence :vjoy-btn-id ",")) :vjoy-btn-id)
      :vjoy-id (sequence (capture :vjoy-prefix)
                         ":"
                         (replace (capture :d+) ,scan-number)
                         ":"
-                        (capture "pov")
-                        ":"
-                        (replace (capture :d+) ,scan-number))
+                        (choice :vjoy-pov :vjoy-btn))
      :kbd-prefix "kbd"
      :kbd-trigger-key (capture (choice "," (some (if-not "," 1))))
      :kbd-modifier (sequence (capture (some (if-not (choice "+" ",") 1))) "+")
