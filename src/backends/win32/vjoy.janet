@@ -247,8 +247,6 @@
   res)
 
 
-######### High-Level Interface #########
-
 (defn check-device
   ```Checks whether the vJoy environment is correct, and the device
   with the specified ID is available. Returns true when the device
@@ -314,6 +312,8 @@
    :continuous-povs cont-pov-num
    :axes axes})
 
+
+######### High-Level Interface #########
 
 (defn update
   ```Updates the actual vJoy device, to reflect the control states

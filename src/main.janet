@@ -682,8 +682,6 @@
     'jumper/make-simple-moving-average-filter  (dyn 'make-simple-moving-average-filter)
     'jumper/default-routes                     (dyn 'default-routes)
 
-    'vjoy/check-device                         (dyn 'vjoy/check-device)
-    'vjoy/get-controls                         (dyn 'vjoy/get-controls)
     'vjoy/update                               (dyn 'vjoy/update)
     'vjoy/reset                                (dyn 'vjoy/reset)
     'vjoy/acquire                              (dyn 'vjoy/acquire)

@@ -19,9 +19,15 @@
    'disable_event_type         [:int32   :ptr :uint32]      # *dev, type
    'enable_event_code          [:int32   :ptr :uint32 :uint32 :ptr]   # *dev, type, code, *data
    'disable_event_code         [:int32   :ptr :uint32 :uint32]        # *dev, type, code
+   'has_event_type             [:int32   :ptr :uint32]                # *dev, type
+   'has_event_code             [:int32   :ptr :uint32 :uint32]        # *dev, type, code
+   'get_abs_info               [:ptr     :ptr :uint32]                # *dev, code
    'uinput_create_from_device  [:int32   :ptr :int32 :ptr]  # *dev, uinput_fd, **uinput_dev
    'uinput_destroy             [:void    :ptr]              # *uinput_dev
    'uinput_write_event         [:int32   :ptr :uint32 :uint32 :int32] # *uinput_dev, type, code, value
+   'uinput_get_syspath         [:string  :ptr]              # *uinput_dev
+   'uinput_get_devnode         [:string  :ptr]              # *uinput_dev
+   'uinput_get_fd              [:string  :int32]            # *uinput_dev
   })
 
 
@@ -940,6 +946,13 @@
 (def DEFAULT-ABS-AXIS-MIN 0)
 (def DEFAULT-ABS-AXIS-MAX 65535)
 
+(def JS-ABS-AXIS-MIN  ABS_X)
+(def JS-ABS-AXIS-MAX  ABS_RESERVED)
+
+(def JS-BTN-MIN  BTN_TRIGGER)
+(def JS-BTN-MAX  (+ 1 BTN_THUMBR))
+
+
 (defn init-virtual-joystick [evd check]
   (call-interface 'set_name evd "Jumper Virtual Joystick")
   
@@ -950,7 +963,7 @@
 
   (def absinfo-struct (in (get-structs) 'input_absinfo))
   (def absinfo-buf (buffer/new-filled (ffi/size absinfo-struct)))
-  (for ac 0 ABS_RESERVED
+  (for ac JS-ABS-AXIS-MIN JS-ABS-AXIS-MAX
     (ffi/write absinfo-struct
                [0  # value
                 DEFAULT-ABS-AXIS-MIN
@@ -964,38 +977,7 @@
     (check (call-interface 'enable_event_code evd EV_ABS ac absinfo-buf)
            (string/format "failed to enable code %n for EV_ABS" ac)))
 
-  (each bc [BTN_TRIGGER
-            BTN_THUMB
-            BTN_THUMB2
-            BTN_TOP
-            BTN_TOP2
-            BTN_PINKIE
-            BTN_BASE
-            BTN_BASE2
-            BTN_BASE3
-            BTN_BASE4
-            BTN_BASE5
-            BTN_BASE6
-            BTN_DEAD
-            BTN_SOUTH
-            BTN_A
-            BTN_EAST
-            BTN_B
-            BTN_C
-            BTN_NORTH
-            BTN_X
-            BTN_WEST
-            BTN_Y
-            BTN_Z
-            BTN_TL
-            BTN_TR
-            BTN_TL2
-            BTN_TR2
-            BTN_SELECT
-            BTN_START
-            BTN_MODE
-            BTN_THUMBL
-            BTN_THUMBR]
+  (for bc JS-BTN-MIN JS-BTN-MAX
     (check (call-interface 'enable_event_code evd EV_KEY bc nil)
            (string/format "failed to enable code %n for EV_KEY" bc)))
 
