@@ -80,6 +80,50 @@
   (put button-name-to-id name id))
 
 
+(defn calc-axis-middle-point [[amin amax]]
+  (math/round (/ (+ amin amax) 2)))
+
+
+(def axis-default-values
+  {:x        calc-axis-middle-point
+   :y        calc-axis-middle-point
+   :z        calc-axis-middle-point
+   :rx       calc-axis-middle-point
+   :ry       calc-axis-middle-point
+   :rz       calc-axis-middle-point
+   :throttle 0
+   :rudder   calc-axis-middle-point
+   :wheel    0
+   :gas      0
+   :brake    0
+   :hat0x    0
+   :hat0y    0
+   :hat1x    0
+   :hat1y    0
+   :hat2x    0
+   :hat2y    0
+   :hat3x    0
+   :hat3y    0
+   :pressure 0
+   :distance 0
+   :tilt-x   0
+   :tilt-y   0
+   :tool-width 0
+   :volume   0
+   :profile  0
+   :misc     0})
+
+
+(defn get-axis-default-value [name range]
+  (def val (in axis-default-values name))
+  (cond
+    (function? val)
+    (val range)
+
+    true
+    val))
+
+
 (defn get-controls [uinput-dev]
   (def devnode (evdev/call-interface 'uinput_get_devnode uinput-dev))
   (log/debug "devnode = %n" devnode)
@@ -123,13 +167,24 @@
 ######### High-Level Interface #########
 
 (defn update [dev &opt buf]
-  # TODO
-  )
+  (def pending (in dev :pending-events))
+  (def uinput-dev (in dev :dev))
+  (each [ev-type code value] pending
+    (evdev/call-interface 'uinput_write_event uinput-dev ev-type code value)
+    (evdev/call-interface 'uinput_write_event uinput-dev evdev/EV_SYN evdev/SYN_REPORT 0))
+  (array/clear pending))
 
 
 (defn reset [dev]
-  # TODO
-  )
+  (def controls (in dev :controls))
+  (def axes (in controls :axes))
+  (def btn-names (in controls :button-names))
+
+  (eachp [aname arange] axes
+    (set-axis dev aname (get-axis-default-value aname arange)))
+  (each bn btn-names
+    (set-button dev bn false))
+  (update dev))
 
 
 (var vjoy-devs @{})
@@ -163,24 +218,32 @@
   (evdev/call-interface 'uinput_destroy (in dev :dev)))
 
 
-(defn set-button [dev btn-id value]
-  # TODO
-  )
+(defn set-button [dev btn-idx value]
+  (if-let [btn-name (if (number? btn-idx)
+                      (get-in dev [:controls :button-names btn-idx])
+                      # else
+                      btn-idx)
+           btn-code (in button-name-to-id btn-name)]
+    (array/push (in dev :pending-events)
+                [evdev/EV_KEY btn-code (if value 1 0)])
+    # else
+    (errorf "invalid button: %n" btn-idx)))
 
 
 (defn set-axis [dev axis-name value]
-  # TODO
-  )
+  (if-let [axis-code (in axis-name-to-id axis-name)]
+    (array/push (in dev :pending-events)
+                [evdev/EV_ABS axis-code value])
+    # else
+    (errorf "invalid axis: %n" axis-name)))
 
 
 (defn set-discrete-pov [dev pov-id value]
-  # TODO
-  )
+  (error "discrete pov switches are not supported"))
 
 
 (defn set-continuous-pov [dev pov-id value]
-  # TODO
-  )
+  (error "continuous pov switches are not supported"))
 
 
 (defn get-device [id]
