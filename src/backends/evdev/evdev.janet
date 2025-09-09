@@ -1011,38 +1011,32 @@
 (def uinput-device-cache @{})
 
 
-(defn get-uinput-device [dev-type]
-  (if-let [dev (in uinput-device-cache dev-type)]
-    dev
-    # else
-    (with [evd
-           (call-interface 'new)
-           |(when $ (call-interface 'free $))]
-      (when (nil? evd)
-        (error "failde to create new evdev device"))
+(defn create-uinput-device [dev-type]
+  (with [evd
+         (call-interface 'new)
+         |(when $ (call-interface 'free $))]
+    (when (nil? evd)
+      (error "failde to create new evdev device"))
 
-      (defn check [ret err]
-        (when (< ret 0)
-          (errorf (string err ": %d") ret)))
+    (defn check [ret err]
+      (when (< ret 0)
+        (errorf (string err ": %d") ret)))
 
-      (def uinput-dev
-        (case dev-type
-          :keyboard
-          (init-virtual-keyboard evd check)
+    (def uinput-dev
+      (case dev-type
+        :keyboard
+        (init-virtual-keyboard evd check)
 
-          :mouse
-          (init-virtual-mouse evd check)
+        :mouse
+        (init-virtual-mouse evd check)
 
-          :joystick
-          (init-virtual-joystick evd check)
+        :joystick
+        (init-virtual-joystick evd check)
 
-          (errorf "unknown device type: %n" dev-type)))
+        (errorf "unknown device type: %n" dev-type)))
 
-      (put uinput-device-cache dev-type uinput-dev)
-      uinput-dev)))
+    uinput-dev))
 
 
-(defn destroy-uinput-device [dev-type]
-  (when-let [dev (in uinput-device-cache dev-type)]
-    (put uinput-device-cache dev-type nil)
-    (call-interface 'uinput_destroy dev)))
+(defn destroy-uinput-device [dev]
+  (call-interface 'uinput_destroy dev))

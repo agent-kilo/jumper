@@ -17,6 +17,14 @@
 (def WHEEL-STEPS-UNIT 120)
 
 
+(var ms-dev nil)
+
+(defn get-device []
+  (if ms-dev
+    ms-dev
+    (set ms-dev (evdev/create-uinput-device :mouse))))
+
+
 (defn write-event-and-sync [dev ev-type code value]
   (evdev/call-interface 'uinput_write_event dev ev-type code value)
   (evdev/call-interface 'uinput_write_event dev evdev/EV_SYN evdev/SYN_REPORT 0))
@@ -29,7 +37,7 @@
   (when absolute?
     (error "absolute mouse movement not supported"))
 
-  (def dev (evdev/get-uinput-device :mouse))
+  (def dev (get-device))
 
   (write-event-and-sync dev evdev/EV_REL evdev/REL_X dx)
   (write-event-and-sync dev evdev/EV_REL evdev/REL_Y dy))
@@ -43,7 +51,7 @@
           :up   0
           :down 1
           (errorf "invalid button state: %n" btn-state)))
-      (def dev (evdev/get-uinput-device :mouse))
+      (def dev (get-device))
       (write-event-and-sync dev evdev/EV_KEY bc state))
     # else
     (errorf "invalid mouse button: %n" btn-name)))
@@ -60,7 +68,7 @@
       "right" [evdev/REL_HWHEEL_HI_RES -1]
       (errorf "invalid mouse wheel direction: %n" direction)))
 
-  (def dev (evdev/get-uinput-device :mouse))
+  (def dev (get-device))
   (def [n r]
     [(div steps WHEEL-STEPS-UNIT)
      (mod steps WHEEL-STEPS-UNIT)])
