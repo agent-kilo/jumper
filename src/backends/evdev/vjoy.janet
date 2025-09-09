@@ -1,7 +1,8 @@
 (import ./evdev)
 
 
-######### Helpers #########
+(def axis-name-to-id @{})
+
 
 (defn get-controls [id]
   # TODO
