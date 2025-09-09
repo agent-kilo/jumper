@@ -63,6 +63,10 @@
    "rwin"    0x5C
    "win"     0x5B
 
+   "lmeta"   0x5B
+   "rmeta"   0x5C
+   "meta"    0x5B
+
    "lalt"    0xA4
    "ralt"    0xA5
    "alt"     0xA4
