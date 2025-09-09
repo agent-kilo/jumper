@@ -27,7 +27,7 @@
    "backspace" evdev/KEY_BACKSPACE
    "tab"     evdev/KEY_TAB
    "enter"   evdev/KEY_ENTER
-   "pause"   evdev/KEY_PAUSE # XXX: not sure
+   "pause"   evdev/KEY_PAUSE
    "capslock" evdev/KEY_CAPSLOCK
    "esc"     evdev/KEY_ESC
    "space"   evdev/KEY_SPACE
@@ -39,10 +39,10 @@
    "up"      evdev/KEY_UP
    "right"   evdev/KEY_RIGHT
    "down"    evdev/KEY_DOWN
-   "printscreen" evdev/KEY_PRINT # XXX: not sure
+   "printscreen" evdev/KEY_PRINT
    "insert"  evdev/KEY_INSERT
    "delete"  evdev/KEY_DELETE
-   "app"     evdev/KEY_COMPOSE # XXX: not sure
+   "app"     evdev/KEY_COMPOSE
    "scrolllock" evdev/KEY_SCROLLLOCK
 
    "numlock" evdev/KEY_NUMLOCK
