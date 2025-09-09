@@ -132,9 +132,9 @@
    ";"   evdev/KEY_SEMICOLON
    "/"   evdev/KEY_SLASH
    "`"   evdev/KEY_GRAVE
-   "["   evdev/KEY_LEFTBRACE # XXX: not sure
+   "["   evdev/KEY_LEFTBRACE
    "\\"  evdev/KEY_BACKSLASH
-   "]"   evdev/KEY_RIGHTBRACE # XXX: not sure
+   "]"   evdev/KEY_RIGHTBRACE
    "'"   evdev/KEY_APOSTROPHE
   })
 
