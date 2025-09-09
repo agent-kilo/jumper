@@ -146,7 +146,6 @@
         (def info-ptr (evdev/call-interface 'get_abs_info evd ac))
         (unless (nil? info-ptr)
           (def absinfo (ffi/read absinfo-struct info-ptr))
-          (log/debug "absinfo = %n" absinfo)
           (def [_value minimum maximum _fuzz _flat _resolution] absinfo)
           (put axes (in axis-id-to-name ac) [minimum maximum]))))
 
@@ -165,6 +164,34 @@
 
 
 ######### High-Level Interface #########
+
+(defn set-button [dev btn-idx value]
+  (if-let [btn-name (if (int? btn-idx)
+                      (get-in dev [:controls :button-names btn-idx])
+                      # else
+                      btn-idx)
+           btn-code (in button-name-to-id btn-name)]
+    (array/push (in dev :pending-events)
+                [evdev/EV_KEY btn-code (if value 1 0)])
+    # else
+    (errorf "invalid button: %n" btn-idx)))
+
+
+(defn set-axis [dev axis-name value]
+  (if-let [axis-code (in axis-name-to-id axis-name)]
+    (array/push (in dev :pending-events)
+                [evdev/EV_ABS axis-code value])
+    # else
+    (errorf "invalid axis: %n" axis-name)))
+
+
+(defn set-discrete-pov [dev pov-id value]
+  (error "discrete pov switches are not supported"))
+
+
+(defn set-continuous-pov [dev pov-id value]
+  (error "continuous pov switches are not supported"))
+
 
 (defn update [dev &opt buf]
   (def pending (in dev :pending-events))
@@ -216,34 +243,6 @@
   (def id (in dev :id))
   (put vjoy-devs id nil)
   (evdev/call-interface 'uinput_destroy (in dev :dev)))
-
-
-(defn set-button [dev btn-idx value]
-  (if-let [btn-name (if (number? btn-idx)
-                      (get-in dev [:controls :button-names btn-idx])
-                      # else
-                      btn-idx)
-           btn-code (in button-name-to-id btn-name)]
-    (array/push (in dev :pending-events)
-                [evdev/EV_KEY btn-code (if value 1 0)])
-    # else
-    (errorf "invalid button: %n" btn-idx)))
-
-
-(defn set-axis [dev axis-name value]
-  (if-let [axis-code (in axis-name-to-id axis-name)]
-    (array/push (in dev :pending-events)
-                [evdev/EV_ABS axis-code value])
-    # else
-    (errorf "invalid axis: %n" axis-name)))
-
-
-(defn set-discrete-pov [dev pov-id value]
-  (error "discrete pov switches are not supported"))
-
-
-(defn set-continuous-pov [dev pov-id value]
-  (error "continuous pov switches are not supported"))
 
 
 (defn get-device [id]
