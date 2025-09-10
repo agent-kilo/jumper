@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="25%" src="https://raw.githubusercontent.com/agent-kilo/jumper/refs/heads/master/res/jumper.png" alt="Jwno Logo">
+  <img width="25%" src="https://raw.githubusercontent.com/agent-kilo/jumper/refs/heads/master/res/jumper.png" alt="Jumper Logo">
 </p>
 
 ## About ##
@@ -8,7 +8,7 @@
 events on your PC. It can be used, alongside DroidPad, to emulate joysticks/keyboards/mouses, and is scriptable using
 [Janet](https://janet-lang.org/).
 
-It currently only runs on x64 Windows.
+It currently only runs on x86-64 Windows and Linux.
 
 
 ## Dependencies ##
@@ -17,14 +17,20 @@ To build from source:
 
 * Janet
 * JPM
-* MSVC toolchain (comes with Community version of Visual Studio)
+* MSVC toolchain on Windows, or GCC toolchain on Linux
 
-To run it:
+To run it on **Windows**:
 
 * vJoy (Optional, if you don't need joystick/gamepad support. Jumper is specifically tested with [this version of vJoy](https://github.com/BrunnerInnovation/vJoy/releases/tag/v2.2.2.0).)
 
+To run it on **Linux**:
+
+* [libevdev](https://gitlab.freedesktop.org/libevdev/libevdev) (Jumper is specifically tested with libevdev v1.13.3)
+
 
 ## Quickstart ##
+
+**Windows:**
 
 1. Download and install [vJoy](https://github.com/BrunnerInnovation/vJoy/releases/tag/v2.2.2.0). You'll also need `SDK.zip`.
 2. Download `jumper.exe` from [Releases](https://github.com/agent-kilo/jumper/releases).
@@ -32,9 +38,34 @@ To run it:
 4. If you have a Jumper config file, drag-and-drop it to `jumper.exe`. Otherwise, just launch `jumper.exe` directly.
 5. Configure DroidPad and connect to Jumper's listening address. (Default: `<your ip>:9876`, UDP).
 
-**Note** that steps 1 and 3 can be skipped if you don't need joystick/gamepad support. And DroidPad's default sensor sampling
-rate is quite low, if you intend to use accelerometer and gyroscope, it's recommended to change the sampling rate setting to
-a smaller number (50000 μs works great for me, but YMMV).
+**Note** that steps 1 and 3 can be skipped if you don't need joystick/gamepad support.
+
+---
+
+**Linux:**
+
+There's currently no pre-built binaries for Linux, you'll need to either run it from source, or build it yourself.
+
+Prerequisites:
+
+1. Install libevdev using your distro's package manager.
+2. Install Janet and JPM.
+3. Run `jpm -l deps` in Jumper's source tree.
+4. (Optional) Run `jpm -l run vcs-version` in Jumper's source tree.
+
+To run directly from source, invoke `jpm -l janet ./src/main.janet [path/to/config/file.janet]`.
+
+To build the binary, install GCC, then do `jpm -l build` instead.
+
+Jumper loads libevdev dynamically. You may need to specify the `LD_LIBRARY_PATH` environment variable to help it locate
+the library. And creating virtual input devices is a privileged operation, you need to either correctly setup the binary's 
+capabilities or run it as root.
+
+
+## About DroidPad Sensor Sampling Rate ##
+
+DroidPad's default sensor sampling rate is quite low, if you intend to use accelerometer and gyroscope, it's recommended
+to change the sampling rate setting to a smaller number (50000 μs works great for me, but YMMV).
 
 
 ## Simple Configuration ##
@@ -65,13 +96,19 @@ ms[:rel[:<speed>]]
 ms:abs
 ```
 
-**Map to `<axis1>` and `<axis2>` of the vJoy device with `<dev-id>`** (valid axis names are `x`, `y`, `z`, `rx`, `ry`, `rz`, `slidenr0`, `slider1`, `wheel`, `accelerator`, `brake`, `clutch`, `steering`, `aileron`, `rudder`, `throttle`, and `none`):
+**Map to mouse movement, in "trackball" mode** (`<speed>` defaults to 1000):
+
+```
+ms:track[:<speed>]
+```
+
+**Map to `<axis1>` and `<axis2>` of the vJoy device with `<dev-id>`** (See the **Axis Names** section below):
 
 ```
 vjoy:<dev-id>:axes:<axis1>,<axis2>
 ```
 
-**Map to the continuous POV switch with `<pov-id>` of the vJoy device with `<dev-id>`** (you need to enable continuous POV switches in vJoy config first):
+**Map to the continuous POV switch with `<pov-id>` of the vJoy device with `<dev-id>`** (you need to enable continuous POV switches in vJoy config first, **not supported** on Linux):
 
 ```
 vjoy:<dev-id>:pov:<pov-id>
@@ -81,7 +118,7 @@ vjoy:<dev-id>:pov:<pov-id>
 
 ### Slider and Steering Wheel Components ###
 
-**Map to `<axis>` of the vJoy device with `<dev-id>`**:
+**Map to `<axis>` of the vJoy device with `<dev-id>`** (See the **Axis Names** section below):
 
 ```
 vjoy:<dev-id>:axis:<axis>
@@ -91,7 +128,7 @@ vjoy:<dev-id>:axis:<axis>
 
 ### Button and Switch Components ###
 
-**Map to a key combo** (`<combo>` is in the form of `<key1>[+<key2>[+<key3>...]]`, see the source in `kbd.janet` for a complete list of valid key names):
+**Map to a key combo** (`<combo>` is in the form of `<key1>[+<key2>[+<key3>...]]`, see the source in `backends/*/kbd.janet` for a complete list of valid key names):
 
 ```
 kbd:<combo>
@@ -109,20 +146,26 @@ ms:btn:<button>
 ms:wheel:<dir>[:<steps>]
 ```
 
-**Map to the button with `<btn-id>` of the vJoy device with `<dev-id>`**:
+**Map to the button with the name `<btn>` of the vJoy device with `<dev-id>`** (See the **Button Names** section below):
 
 ```
-vjoy:<dev-id>:btn:<btn-id>
+vjoy:<dev-id>:btn:<btn>
 ```
 
 ---
 
 ### DPad Component ###
 
-**Map to the (discrete or continuous) POV switch with `<pov-id>` of the vJoy device with `<dev-id>`** (you need to enable POV switches in vJoy config first):
+**Map to the (discrete or continuous) POV switch with `<pov-id>` of the vJoy device with `<dev-id>`** (you need to enable POV switches in vJoy config first, **not supported** on Linux):
 
 ```
 vjoy:<dev-id>:pov:<pov-id>
+```
+
+**Map up, right, down, left dpad buttons to vJoy buttons `<btn1>`..`<btn4>`, respectively** (See the **Button Names** section below):
+
+```
+vjoy:<dev-id>:btn:<btn1>[,<btn2>[,<btn3>[,btn4]]]
 ```
 
 **Map up, right, down, left dpad buttons to keyboard `<combo1>`..`<combo4>`, respectively**:
@@ -132,6 +175,20 @@ kbd:<combo1>[,<combo2>[,<combo3>[,combo4]]]
 ```
 
 ---
+
+
+## Axis Names ##
+
+For Windows (need to be enabled in vJoy config first): `x`, `y`, `z`, `rx`, `ry`, `rz`, `slidenr0`, `slider1`, `wheel`, `accelerator`, `brake`, `clutch`, `steering`, `aileron`, `rudder`, `throttle`, `none`
+
+For Linux: `x`, `y`, `z`, `rx`, `ry`, `rz`, `throttle`, `rudder`, `wheel`, `gas`, `brake`, `hat0x`, `hat0y`, `hat1x`, `hat1y`, `hat2x`, `hat2y`, `hat3x`, `hat3y`, `pressure`, `distance`, `tilt-x`, `tilt-y`, `tool-width`, `volume`, `profile`, `misc`
+
+
+## Button Names ##
+
+You can generally use an interger to reference the nth button that's available, but note that Windows button indices start from 1, and Linux button indices start from 0 instead.
+
+Additionally, you can also specify button names in place of indices on Linux. Valid button names are: `trigger`, `thumb`, `thumb2`, `top`, `top2`, `pinkie`, `base`, `base2`, `base3`, `base4`, `base5`, `base6`, `dead`, `south`, `a`, `east`, `b`, `c`, `north`, `x`, `west`, `y`, `z`, `tl`, `tr`, `tl2`, `tr2`, `select`, `start`, `mode`, `thumbl`, `thumbr`.
 
 
 ## License ##
