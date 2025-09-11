@@ -618,8 +618,46 @@
     false))
 
 
-(defn handle-connection [conn dispatch]
-  (log/debug "= NEW CONNECTION =\n")
+(def known-peers @{})
+
+
+(defn broadcast-stream [my-peer include-my-peer? buf]
+  (log/debug "my-peer = %n" my-peer)
+  (eachp [peer peer-conn] known-peers
+    (log/debug "peer = %n" peer)
+    (when (or include-my-peer?
+              (not= peer my-peer))
+      (log/debug "broadcasting to %n" peer)
+      (ev/write peer-conn buf))))
+
+
+(defn broadcast-datagram [my-peer include-my-peer? conn buf]
+  (log/debug "my-peer = %n" my-peer)
+  (eachp [peer peer-addr] known-peers
+    (log/debug "peer = %n" peer)
+    (when (or include-my-peer?
+              (not= peer my-peer))
+      (log/debug "broadcasting to %n" peer)
+      (net/send-to conn peer-addr buf))))
+
+
+(defdyn *send-fn*)
+(defdyn *broadcast-fn*)
+
+
+(defn handle-connection [conn dispatch on-connection]
+  (def peer (net/peername conn))
+  (log/debug "= NEW CONNECTION from %n =" peer)
+
+  (def send-fn      |(ev/write conn $))
+  (def broadcast-fn |(broadcast-stream peer $1 $0))
+
+  (put known-peers peer conn)
+  (when on-connection
+    (with-dyns [*send-fn*      send-fn
+                *broadcast-fn* broadcast-fn]
+      (on-connection)))
+
   (var buf @"")
   (while (ev/read conn 4096 buf)
     (log/debug "---- after read ----")
@@ -629,14 +667,106 @@
     (log/debug "decoded = %n" decoded)
     (log/debug "remaining-buf = %n" remaining-buf)
 
-    (each v decoded
-      (dispatch v))
+    (with-dyns [*send-fn*      send-fn
+                *broadcast-fn* broadcast-fn]
+      (each v decoded
+        (dispatch v)))
+
     (if remaining-buf
       (set buf remaining-buf)
       # else
       (buffer/clear buf))
     (log/debug "---- before read ----"))
-  (log/debug "= CONNECTION CLOSED =\n"))
+
+  (put known-peers peer nil)
+  (log/debug "= CONNECTION from %n CLOSED =" peer))
+
+
+(defn handle-datagram-messages [conn dispatch on-connection]
+  (var buf @"")
+  (forever
+    (def peer-addr (net/recv-from conn 4096 buf))
+    (def peer (net/address-unpack peer-addr))
+
+    (def send-fn      |(net/send-to conn peer-addr $))
+    (def broadcast-fn |(broadcast-datagram peer $1 conn $0))
+
+    (unless (has-key? known-peers peer)
+      (put known-peers peer peer-addr)
+      (when on-connection
+        (with-dyns [*send-fn*      send-fn
+                    *broadcast-fn* broadcast-fn]
+          (on-connection))))
+
+    (log/debug "---- after read ----")
+    (def [decoded remaining-buf]
+      (decode-json-values buf))
+
+    (log/debug "decoded = %n" decoded)
+    (log/debug "remaining-buf = %n" remaining-buf)
+
+    (with-dyns [*send-fn*      send-fn
+                *broadcast-fn* broadcast-fn]
+      (each v decoded
+        (dispatch v)))
+
+    (if remaining-buf
+      (set buf remaining-buf)
+      # else
+      (buffer/clear buf))
+    (log/debug "---- before read ----")))
+
+
+(defn send [data]
+  (def encoded (buffer/push (json/encode data) "\n"))
+  (log/debug "sending encoded = %n" encoded)
+  ((dyn *send-fn*) encoded))
+
+
+(defn send-switch [id state]
+  (send {"id"    id
+         "type"  "SWITCH"
+         "state" (truthy? state)}))
+
+
+(defn send-slider [id value]
+  (send {"id"    id
+         "type"  "SLIDER"
+         "value" value}))
+
+
+(defn send-led [id state]
+  (send {"id"    id
+         "type"  "LED"
+         "state" (string/ascii-upper (string state))}))
+
+
+(defn broadcast [data &opt include-my-peer?]
+  (default include-my-peer? true)
+  (def encoded (buffer/push (json/encode data) "\n"))
+  (log/debug "broadcasting encoded = %n" encoded)
+  ((dyn *broadcast-fn*) encoded include-my-peer?))
+
+
+(defn broadcast-switch [id state &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "SWITCH"
+              "state" (truthy? state)}
+             include-my-peer?))
+
+
+(defn broadcast-slider [id value &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "SLIDER"
+              "value" value}
+             include-my-peer?))
+
+
+(defn broadcast-led [id state &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "LED"
+              "state" (string/ascii-upper (string state))}
+             include-my-peer?))
 
 
 (def server-address-peg
@@ -701,6 +831,14 @@
                                                  :doc "Current Jumper version.\n"}
     'jumper/make-simple-moving-average-filter  (dyn 'make-simple-moving-average-filter)
     'jumper/default-routes                     (dyn 'default-routes)
+    'jumper/send                               (dyn 'send)
+    'jumper/send-switch                        (dyn 'send-switch)
+    'jumper/send-slider                        (dyn 'send-slider)
+    'jumper/send-led                           (dyn 'send-led)
+    'jumper/broadcast                          (dyn 'broadcast)
+    'jumper/broadcast-switch                   (dyn 'broadcast-switch)
+    'jumper/broadcast-slider                   (dyn 'broadcast-slider)
+    'jumper/broadcast-led                      (dyn 'broadcast-led)
 
     'vjoy/update                               (dyn 'vjoy/update)
     'vjoy/reset                                (dyn 'vjoy/reset)
@@ -777,9 +915,9 @@
   merged)
 
 
-(defn start-udp-server [ip port dispatch]
+(defn start-udp-server [ip port dispatch on-connection]
   (def server (net/listen ip port :datagram))
-  (handle-connection server dispatch))
+  (handle-datagram-messages server dispatch on-connection))
 
 
 (defn main [& _args]
@@ -826,6 +964,11 @@
       |(dispatch-dp-message $ default-routes)))
 
   #
+  # config: on-connection
+  #
+  (def on-connection-fn (in merged-config :on-connection))
+
+  #
   # config: server-address
   #
   (def server-address
@@ -849,9 +992,14 @@
   (log/info "Starting %s server at %s:%d ..." server-type server-ip server-port)
   (case server-type
     :tcp
-    (net/server server-ip server-port |(handle-connection $ dispatch-fn))
+    (net/server server-ip
+                server-port
+                |(handle-connection $ dispatch-fn on-connection-fn))
 
     :udp
-    (start-udp-server server-ip server-port dispatch-fn)
+    (start-udp-server server-ip
+                      server-port
+                      dispatch-fn
+                      on-connection-fn)
 
     (errorf "unknown server type: %n" server-type)))
