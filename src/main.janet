@@ -77,11 +77,6 @@
     [ret-arr remaining-buf]))
 
 
-(def MOUSE-MIN-X 0)
-(def MOUSE-MAX-X 65535)
-(def MOUSE-MIN-Y 0)
-(def MOUSE-MAX-Y 65535)
-
 (def DEFAULT-MOUSE-REL-STEPS 1000)
 (def DEFAULT-MOUSE-ABS-SCALE (math/sqrt 2))
 (def DEFAULT-MOUSE-TRACK-STEPS 1000)
@@ -97,15 +92,15 @@
 
 
 (defn do-ms-abs [x y scale]
-  (def mouse-x (max MOUSE-MIN-X
-                    (min MOUSE-MAX-X
-                         (math/round (+ MOUSE-MIN-X
-                                        (* (- MOUSE-MAX-X MOUSE-MIN-X)
+  (def mouse-x (max ms/ABS-X-MIN
+                    (min ms/ABS-X-MAX
+                         (math/round (+ ms/ABS-X-MIN
+                                        (* (- ms/ABS-X-MAX ms/ABS-X-MIN)
                                            (/ (+ (* x scale) 1) 2)))))))
-  (def mouse-y (max MOUSE-MIN-Y
-                    (min MOUSE-MAX-Y
-                         (math/round (+ MOUSE-MIN-Y
-                                        (* (- MOUSE-MAX-Y MOUSE-MIN-Y)
+  (def mouse-y (max ms/ABS-Y-MIN
+                    (min ms/ABS-Y-MAX
+                         (math/round (+ ms/ABS-Y-MIN
+                                        (* (- ms/ABS-Y-MAX ms/ABS-Y-MIN)
                                            (/ (+ (- (* y scale)) 1) 2)))))))
   (ms/send-movement mouse-x mouse-y true true))
 

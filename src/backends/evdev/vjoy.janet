@@ -141,7 +141,7 @@
     (def evd (ffi/read :ptr buf))
     (def absinfo-struct (in (evdev/get-structs) 'input_absinfo))
     (def axes @{})
-    (for ac evdev/JS-ABS-AXIS-MIN evdev/JS-ABS-AXIS-MAX
+    (for ac evdev/JOYSTICK-ABS-AXIS-MIN evdev/JOYSTICK-ABS-AXIS-MAX
       (when (< 0 (evdev/call-interface 'has_event_code evd evdev/EV_ABS ac))
         (def info-ptr (evdev/call-interface 'get_abs_info evd ac))
         (unless (nil? info-ptr)
@@ -150,7 +150,7 @@
           (put axes (in axis-id-to-name ac) [minimum maximum]))))
 
     (def buttons @[])
-    (for bc evdev/JS-BTN-MIN evdev/JS-BTN-MAX
+    (for bc evdev/JOYSTICK-BTN-MIN evdev/JOYSTICK-BTN-MAX
       (def btn-name (in button-id-to-name bc))
       (when (and btn-name
                  (< 0 (evdev/call-interface 'has_event_code evd evdev/EV_KEY bc)))

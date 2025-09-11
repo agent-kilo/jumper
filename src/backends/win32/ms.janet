@@ -1,6 +1,12 @@
 (import ../../log)
 
 
+(def ABS-X-MIN 0)
+(def ABS-X-MAX 65535)
+(def ABS-Y-MIN 0)
+(def ABS-Y-MAX 65535)
+
+
 (var user32-interface nil)
 (var user32-structs nil)
 

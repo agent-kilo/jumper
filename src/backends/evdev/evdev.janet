@@ -897,14 +897,13 @@
 
   (for kc 0 KEY_MAX
     (check (call-interface 'enable_event_code evd EV_KEY kc nil)
-           (string/format "failed to enable code %n for EV_KEY" kc)))
+           (string/format "failed to enable code %n for EV_KEY" kc))))
 
-  (def buf (buffer/new-filled (ffi/size :ptr)))
-  (check (call-interface 'uinput_create_from_device evd UINPUT_OPEN_MANAGED buf)
-         "failed to create virtual keyboard device")
 
-  (ffi/read :ptr buf))
-
+(def MOUSE-ABS-X-MIN 0)
+(def MOUSE-ABS-X-MAX 65535)
+(def MOUSE-ABS-Y-MIN 0)
+(def MOUSE-ABS-Y-MAX 65535)
 
 (defn init-virtual-mouse [evd check]
   (call-interface 'set_name evd "Jumper Virtual Mouse")
@@ -914,6 +913,8 @@
 
   (check (call-interface 'enable_event_type evd EV_REL)
          "failed to enable EV_REL")
+  (check (call-interface 'enable_event_type evd EV_ABS)
+         "failed to enable EV_ABS")
   (check (call-interface 'enable_event_type evd EV_KEY)
          "failed to enable EV_KEY")
 
@@ -926,6 +927,35 @@
     (check (call-interface 'enable_event_code evd EV_REL rc nil)
            (string/format "failed to enable code %n for EV_REL" rc)))
 
+  (def absinfo-struct (in (get-structs) 'input_absinfo))
+  (def absinfo-buf (buffer/new-filled (ffi/size absinfo-struct)))
+
+  (ffi/write absinfo-struct
+             [0     # value
+              MOUSE-ABS-X-MIN  # minimum
+              MOUSE-ABS-X-MAX  # maximum
+              0     # fuzz
+              0     # flat
+              0     # resolution
+             ]
+             absinfo-buf
+             0)
+  (check (call-interface 'enable_event_code evd EV_ABS ABS_X absinfo-buf)
+         (string/format "failed to enable code %n for EV_ABS" ABS_X))
+
+  (ffi/write absinfo-struct
+             [0     # value
+              MOUSE-ABS-Y-MIN  # minimum
+              MOUSE-ABS-Y-MAX  # maximum
+              0     # fuzz
+              0     # flat
+              0     # resolution
+             ]
+             absinfo-buf
+             0)
+  (check (call-interface 'enable_event_code evd EV_ABS ABS_Y absinfo-buf)
+         (string/format "failed to enable code %n for EV_ABS" ABS_Y))
+
   (each bc [BTN_LEFT
             BTN_RIGHT
             BTN_MIDDLE
@@ -934,23 +964,17 @@
             BTN_FORWARD
             BTN_BACK]
     (check (call-interface 'enable_event_code evd EV_KEY bc nil)
-           (string/format "failed to enable code %n for EV_KEY" bc)))
-
-  (def buf (buffer/new-filled (ffi/size :ptr)))
-  (check (call-interface 'uinput_create_from_device evd UINPUT_OPEN_MANAGED buf)
-         "failed to create virtual mouse device")
-
-  (ffi/read :ptr buf))
+           (string/format "failed to enable code %n for EV_KEY" bc))))
 
 
 (def DEFAULT-ABS-AXIS-MIN 0)
 (def DEFAULT-ABS-AXIS-MAX 65535)
 
-(def JS-ABS-AXIS-MIN  ABS_X)
-(def JS-ABS-AXIS-MAX  ABS_RESERVED)
+(def JOYSTICK-ABS-AXIS-MIN  ABS_X)
+(def JOYSTICK-ABS-AXIS-MAX  ABS_RESERVED)
 
-(def JS-BTN-MIN  BTN_TRIGGER)
-(def JS-BTN-MAX  (+ 1 BTN_THUMBR))
+(def JOYSTICK-BTN-MIN  BTN_TRIGGER)
+(def JOYSTICK-BTN-MAX  (+ 1 BTN_THUMBR))
 
 
 (defn init-virtual-joystick [evd check]
@@ -963,35 +987,26 @@
 
   (def absinfo-struct (in (get-structs) 'input_absinfo))
   (def absinfo-buf (buffer/new-filled (ffi/size absinfo-struct)))
-  (for ac JS-ABS-AXIS-MIN JS-ABS-AXIS-MAX
-    (ffi/write absinfo-struct
-               [0  # value
-                DEFAULT-ABS-AXIS-MIN
-                DEFAULT-ABS-AXIS-MAX
-                0  # fuzz
-                0  # flat
-                0  # resolution
-               ]
-               absinfo-buf
-               0)
+  (ffi/write absinfo-struct
+             [0  # value
+              DEFAULT-ABS-AXIS-MIN
+              DEFAULT-ABS-AXIS-MAX
+              0  # fuzz
+              0  # flat
+              0  # resolution
+             ]
+             absinfo-buf
+             0)
+  (for ac JOYSTICK-ABS-AXIS-MIN JOYSTICK-ABS-AXIS-MAX
     (check (call-interface 'enable_event_code evd EV_ABS ac absinfo-buf)
            (string/format "failed to enable code %n for EV_ABS" ac)))
 
-  (for bc JS-BTN-MIN JS-BTN-MAX
+  (for bc JOYSTICK-BTN-MIN JOYSTICK-BTN-MAX
     (check (call-interface 'enable_event_code evd EV_KEY bc nil)
-           (string/format "failed to enable code %n for EV_KEY" bc)))
-
-  (def buf (buffer/new-filled (ffi/size :ptr)))
-  (check (call-interface 'uinput_create_from_device evd UINPUT_OPEN_MANAGED buf)
-         "failed to create virtual mouse device")
-
-  (ffi/read :ptr buf))
+           (string/format "failed to enable code %n for EV_KEY" bc))))
 
 
 ######### High-level interface #########
-
-(def uinput-device-cache @{})
-
 
 (defn create-uinput-device [dev-type]
   (with [evd
@@ -1004,19 +1019,26 @@
       (when (< ret 0)
         (errorf (string err ": %d") ret)))
 
-    (def uinput-dev
-      (case dev-type
-        :keyboard
-        (init-virtual-keyboard evd check)
+    (case dev-type
+      :keyboard
+       (init-virtual-keyboard evd check)
 
-        :mouse
-        (init-virtual-mouse evd check)
+       :mouse
+       (init-virtual-mouse evd check)
 
-        :joystick
-        (init-virtual-joystick evd check)
+       :joystick
+       (init-virtual-joystick evd check)
 
-        (errorf "unknown device type: %n" dev-type)))
+       (errorf "unknown device type: %n" dev-type))
 
+    (def buf (buffer/new-filled (ffi/size :ptr)))
+    (check (call-interface 'uinput_create_from_device evd UINPUT_OPEN_MANAGED buf)
+           (string/format "failed to create virtual %n device" dev-type))
+
+    (def uinput-dev (ffi/read :ptr buf))
+    (log/info "Virtual %n device created: %n"
+              dev-type
+              (call-interface 'uinput_get_devnode uinput-dev))
     uinput-dev))
 
 

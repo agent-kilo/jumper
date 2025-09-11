@@ -1,6 +1,12 @@
 (import ./evdev)
 
 
+(def ABS-X-MIN evdev/MOUSE-ABS-X-MIN)
+(def ABS-X-MAX evdev/MOUSE-ABS-X-MAX)
+(def ABS-Y-MIN evdev/MOUSE-ABS-Y-MIN)
+(def ABS-Y-MAX evdev/MOUSE-ABS-Y-MAX)
+
+
 (def BTN-NAME-TO-CODE
   {"left"    evdev/BTN_LEFT
    "right"   evdev/BTN_RIGHT
@@ -34,13 +40,15 @@
   (default absolute? false)
   (default all-monitors? false)
 
-  (when absolute?
-    (error "absolute mouse movement not supported"))
+  (def [ev-type ev-code-x ev-code-y]
+    (if absolute?
+      [evdev/EV_ABS evdev/ABS_X evdev/ABS_Y]
+      # else
+      [evdev/EV_REL evdev/REL_X evdev/REL_Y]))
 
   (def dev (get-device))
-
-  (write-event-and-sync dev evdev/EV_REL evdev/REL_X dx)
-  (write-event-and-sync dev evdev/EV_REL evdev/REL_Y dy))
+  (write-event-and-sync dev ev-type ev-code-x dx)
+  (write-event-and-sync dev ev-type ev-code-y dy))
 
 
 (defn send-button [btn-name btn-state]
