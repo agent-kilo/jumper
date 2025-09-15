@@ -220,6 +220,17 @@ You can generally use an interger to reference the nth button that's available, 
 Additionally, you can also specify button names in place of indices on Linux. Valid button names are: `trigger`, `thumb`, `thumb2`, `top`, `top2`, `pinkie`, `base`, `base2`, `base3`, `base4`, `base5`, `base6`, `dead`, `south`, `a`, `east`, `b`, `c`, `north`, `x`, `west`, `y`, `z`, `tl`, `tr`, `tl2`, `tr2`, `select`, `start`, `mode`, `thumbl`, `thumbr`.
 
 
+## Available on Itch.io ##
+
+If you find Jumper useful, please consider donating on itch.io:
+
+<p>
+  <a href="https://agentkilo.itch.io/jumper">
+    <img height="60" src="https://raw.githubusercontent.com/agent-kilo/jumper/refs/heads/master/res/available-on-itch-io.svg" alt="Available on itch.io">
+  </a>
+</p>
+
+
 ## License ##
 
 Jumper's source code is MIT-licensed. All rights to other assets (logos etc.) are reserved by the author.
