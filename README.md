@@ -58,8 +58,21 @@ To run directly from source, invoke `jpm -l janet ./src/main.janet [path/to/conf
 To build the binary, install GCC, then do `jpm -l build` instead.
 
 Jumper loads libevdev dynamically. You may need to specify the `LD_LIBRARY_PATH` environment variable to help it locate
-the library. And creating virtual input devices is a privileged operation, you need to either correctly setup the binary's 
-capabilities or run it as root.
+the library.
+
+Creating virtual input devices is a privileged operation in Linux. You may run Jumper as root, but the best practice is
+to assign a dedicated group for accessing `/dev/uinput` (needs udev):
+
+1. Create a group named `uinput` (or any other name that's not already taken).
+2. Create the file `/etc/udev/rules.d/99-uinput-group.rules`, containing only this line: `KERNEL=="uinput", MODE="0660", GROUP="uinput", OPTIONS+="static_node=uinput"`. Note that `GROUP` should be set to the group name you had chosen in step 1.
+
+From here on, you can either:
+
+3.a. Change the Jumper executable's owner group to the one you chose, then enable the `setgid` flag. This would grant access to everyone that can launch Jumper.
+
+Or:
+
+3.b. Add your user to the group you chose. This would grant access to every process launched by your user.
 
 
 ## About DroidPad Sensor Sampling Rate ##
@@ -177,6 +190,22 @@ kbd:<combo1>[,<combo2>[,<combo3>[,combo4]]]
 ---
 
 
+## Sending Component States to DroidPad ##
+
+You can call these functions in a handler, or in a fiber spawned by a handler, to update component states:
+
+* `jumper/send`
+* `jumper/send-switch`
+* `jumper/send-slider`
+* `jumper/send-led`
+* `jumper/broadcast`
+* `jumper/broadcast-switch`
+* `jumper/broadcast-slider`
+* `jumper/broadcast-led`
+
+Please see `src/main.janet` and `example/sync-states.janet` for detailed usage info.
+
+
 ## Axis Names ##
 
 For Windows (need to be enabled in vJoy config first): `x`, `y`, `z`, `rx`, `ry`, `rz`, `slidenr0`, `slider1`, `wheel`, `accelerator`, `brake`, `clutch`, `steering`, `aileron`, `rudder`, `throttle`, `none`
@@ -186,7 +215,7 @@ For Linux: `x`, `y`, `z`, `rx`, `ry`, `rz`, `throttle`, `rudder`, `wheel`, `gas`
 
 ## Button Names ##
 
-You can generally use an interger to reference the nth button that's available, but note that Windows button indices start from 1, and Linux button indices start from 0 instead.
+You can generally use an interger to reference the nth button that's available, but note that Windows button indices start from `1`, and Linux button indices start from `0` instead.
 
 Additionally, you can also specify button names in place of indices on Linux. Valid button names are: `trigger`, `thumb`, `thumb2`, `top`, `top2`, `pinkie`, `base`, `base2`, `base3`, `base4`, `base5`, `base6`, `dead`, `south`, `a`, `east`, `b`, `c`, `north`, `x`, `west`, `y`, `z`, `tl`, `tr`, `tl2`, `tr2`, `select`, `start`, `mode`, `thumbl`, `thumbr`.
 
