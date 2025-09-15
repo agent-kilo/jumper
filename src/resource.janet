@@ -12,15 +12,15 @@
 (def VERSION_MAJOR
   "Major version."
   {:resource :versioninfo}
-  0)
+  1)
 (def VERSION_MINOR
   "Minor version."
   {:resource :versioninfo}
-  9)
+  0)
 (def VERSION_PATCH
   "Patch level."
   {:resource :versioninfo}
-  3)
+  1)
 (def VERSION_INTERNAL
   "Internal version number."
   {:resource :versioninfo}
