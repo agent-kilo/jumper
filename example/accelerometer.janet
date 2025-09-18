@@ -30,7 +30,7 @@
 # The angle where longitudinal and latitudinal inputs reach their min/max limits.
 # Relative to the rest position.
 #
-(def ACCEL-LIMIT-ANGLE     25)
+(def ACCEL-LIMIT-ANGLE     30)
 #
 # Which vJoy device to send inputs to.
 #
