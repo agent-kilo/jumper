@@ -212,7 +212,7 @@ Please see `src/main.janet` and `example/sync-states.janet` for detailed usage i
 
 For Windows (need to be enabled in vJoy config first): `x`, `y`, `z`, `rx`, `ry`, `rz`, `slidenr0`, `slider1`, `wheel`, `accelerator`, `brake`, `clutch`, `steering`, `aileron`, `rudder`, `throttle`, `none`
 
-For Linux: `x`, `y`, `z`, `rx`, `ry`, `rz`, `throttle`, `rudder`, `wheel`, `gas`, `brake`, `hat0x`, `hat0y`, `hat1x`, `hat1y`, `hat2x`, `hat2y`, `hat3x`, `hat3y`, `pressure`, `distance`, `tilt-x`, `tilt-y`, `tool-width`, `volume`, `profile`, `misc`
+For Linux: `x`, `y`, `z`, `rx`, `ry`, `rz`, `throttle`, `rudder`, `wheel`, `gas`, `brake`, `hat0x`, `hat0y`, `hat1x`, `hat1y`, `hat2x`, `hat2y`, `hat3x`, `hat3y`, `pressure`, `distance`, `tilt-x`, `tilt-y`, `tool-width`, `volume`, `profile`, `misc`, `none`
 
 
 ## Button Names ##
