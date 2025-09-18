@@ -741,6 +741,11 @@
          "state" (string/ascii-upper (string state))}))
 
 
+(defn send-log [msg]
+  (send {"type"    "LOG"
+         "message" msg}))
+
+
 (defn broadcast [data &opt include-my-peer?]
   (default include-my-peer? true)
   (def encoded (buffer/push (json/encode data) "\n"))
@@ -766,6 +771,12 @@
   (broadcast {"id"    id
               "type"  "LED"
               "state" (string/ascii-upper (string state))}
+             include-my-peer?))
+
+
+(defn broadcast-log [msg &opt include-my-peer?]
+  (broadcast {"type"    "LOG"
+              "message" msg}
              include-my-peer?))
 
 
@@ -835,10 +846,12 @@
     'jumper/send-switch                        (dyn 'send-switch)
     'jumper/send-slider                        (dyn 'send-slider)
     'jumper/send-led                           (dyn 'send-led)
+    'jumper/send-log                           (dyn 'send-log)
     'jumper/broadcast                          (dyn 'broadcast)
     'jumper/broadcast-switch                   (dyn 'broadcast-switch)
     'jumper/broadcast-slider                   (dyn 'broadcast-slider)
     'jumper/broadcast-led                      (dyn 'broadcast-led)
+    'jumper/broadcast-log                      (dyn 'broadcast-log)
 
     'vjoy/update                               (dyn 'vjoy/update)
     'vjoy/reset                                (dyn 'vjoy/reset)
