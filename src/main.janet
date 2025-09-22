@@ -741,6 +741,12 @@
          "state" (string/ascii-upper (string state))}))
 
 
+(defn send-gauge [id value]
+  (send {"id"    id
+         "type"  "GAUGE"
+         "value" value}))
+
+
 (defn send-log [msg]
   (send {"type"    "LOG"
          "message" msg}))
@@ -771,6 +777,13 @@
   (broadcast {"id"    id
               "type"  "LED"
               "state" (string/ascii-upper (string state))}
+             include-my-peer?))
+
+
+(defn broadcast-gauge [id value &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "GAUGE"
+              "value" value}
              include-my-peer?))
 
 
@@ -846,11 +859,13 @@
     'jumper/send-switch                        (dyn 'send-switch)
     'jumper/send-slider                        (dyn 'send-slider)
     'jumper/send-led                           (dyn 'send-led)
+    'jumper/send-gauge                         (dyn 'send-gauge)
     'jumper/send-log                           (dyn 'send-log)
     'jumper/broadcast                          (dyn 'broadcast)
     'jumper/broadcast-switch                   (dyn 'broadcast-switch)
     'jumper/broadcast-slider                   (dyn 'broadcast-slider)
     'jumper/broadcast-led                      (dyn 'broadcast-led)
+    'jumper/broadcast-gauge                    (dyn 'broadcast-gauge)
     'jumper/broadcast-log                      (dyn 'broadcast-log)
 
     'vjoy/update                               (dyn 'vjoy/update)
