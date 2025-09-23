@@ -641,11 +641,12 @@
       (net/send-to conn peer-addr buf))))
 
 
+(defdyn *peer*)
 (defdyn *send-fn*)
 (defdyn *broadcast-fn*)
 
 
-(defn handle-connection [conn dispatch on-connection]
+(defn handle-connection [conn dispatch on-connection on-disconnection]
   (def peer (net/peername conn))
   (log/debug "= NEW CONNECTION from %n =" peer)
 
@@ -654,7 +655,8 @@
 
   (put known-peers peer conn)
   (when on-connection
-    (with-dyns [*send-fn*      send-fn
+    (with-dyns [*peer*         peer
+                *send-fn*      send-fn
                 *broadcast-fn* broadcast-fn]
       (on-connection)))
 
@@ -667,7 +669,8 @@
     (log/debug "decoded = %n" decoded)
     (log/debug "remaining-buf = %n" remaining-buf)
 
-    (with-dyns [*send-fn*      send-fn
+    (with-dyns [*peer*         peer
+                *send-fn*      send-fn
                 *broadcast-fn* broadcast-fn]
       (each v decoded
         (dispatch v)))
@@ -679,10 +682,21 @@
     (log/debug "---- before read ----"))
 
   (put known-peers peer nil)
-  (log/debug "= CONNECTION from %n CLOSED =" peer))
+  (log/debug "= CONNECTION from %n CLOSED =" peer)
+
+  (when on-disconnection
+    # Connection is closed from the client side, no need
+    # for *send-fn* any more.
+    (with-dyns [*peer*         peer
+                *broadcast-fn* broadcast-fn]
+      (on-disconnection))))
 
 
-(defn handle-datagram-messages [conn dispatch on-connection]
+#
+# XXX: on-disconnection is currently not used at all, since
+#      datagram "connections" don't actually "disconnect".
+#
+(defn handle-datagram-messages [conn dispatch on-connection on-disconnection]
   (var buf @"")
   (forever
     (def peer-addr (net/recv-from conn 4096 buf))
@@ -694,7 +708,8 @@
     (unless (has-key? known-peers peer)
       (put known-peers peer peer-addr)
       (when on-connection
-        (with-dyns [*send-fn*      send-fn
+        (with-dyns [*peer*         peer
+                    *send-fn*      send-fn
                     *broadcast-fn* broadcast-fn]
           (on-connection))))
 
@@ -705,7 +720,8 @@
     (log/debug "decoded = %n" decoded)
     (log/debug "remaining-buf = %n" remaining-buf)
 
-    (with-dyns [*send-fn*      send-fn
+    (with-dyns [*peer*         peer
+                *send-fn*      send-fn
                 *broadcast-fn* broadcast-fn]
       (each v decoded
         (dispatch v)))
@@ -793,6 +809,10 @@
              include-my-peer?))
 
 
+(defn get-peer []
+  (dyn *peer*))
+
+
 (def server-address-peg
   (peg/compile
    ~{:ip-seg (choice
@@ -867,6 +887,7 @@
     'jumper/broadcast-led                      (dyn 'broadcast-led)
     'jumper/broadcast-gauge                    (dyn 'broadcast-gauge)
     'jumper/broadcast-log                      (dyn 'broadcast-log)
+    'jumper/get-peer                           (dyn 'get-peer)
 
     'vjoy/update                               (dyn 'vjoy/update)
     'vjoy/reset                                (dyn 'vjoy/reset)
@@ -943,9 +964,12 @@
   merged)
 
 
-(defn start-udp-server [ip port dispatch on-connection]
+(defn start-udp-server [ip port dispatch on-connection on-disconnection]
   (def server (net/listen ip port :datagram))
-  (handle-datagram-messages server dispatch on-connection))
+  (handle-datagram-messages server
+                            dispatch
+                            on-connection
+                            on-disconnection))
 
 
 (defn main [& _args]
@@ -996,6 +1020,10 @@
   #
   (def on-connection-fn (in merged-config :on-connection))
 
+  # config: on-disconnection
+  #
+  (def on-disconnection-fn (in merged-config :on-disconnection))
+
   #
   # config: server-address
   #
@@ -1022,12 +1050,16 @@
     :tcp
     (net/server server-ip
                 server-port
-                |(handle-connection $ dispatch-fn on-connection-fn))
+                |(handle-connection $
+                                    dispatch-fn
+                                    on-connection-fn
+                                    on-disconnection-fn))
 
     :udp
     (start-udp-server server-ip
                       server-port
                       dispatch-fn
-                      on-connection-fn)
+                      on-connection-fn
+                      on-disconnection-fn)
 
     (errorf "unknown server type: %n" server-type)))
