@@ -10,6 +10,7 @@
 
 
 (def DEFAULT-CONFIG-FILE-PATH "jumper-config.janet")
+(def DEFAULT-DATAGRAM-CLIENT-TTL 60)  # in seconds
 
 
 (def JUMPER-VERSION
@@ -25,6 +26,91 @@
      :header (sequence "decode error at position" :s+ (replace (capture :position) ,scan-number))
      :err-msg (capture (some 1))
      :main (sequence :header :s* ":" :s* :err-msg -1)}))
+
+
+(defdyn *peer*)
+(defdyn *send-fn*)
+(defdyn *broadcast-fn*)
+
+
+(defn send [data]
+  (def encoded (buffer/push (json/encode data) "\n"))
+  (log/debug "sending encoded = %n" encoded)
+  ((dyn *send-fn*) encoded))
+
+
+(defn send-switch [id state]
+  (send {"id"    id
+         "type"  "SWITCH"
+         "state" (truthy? state)}))
+
+
+(defn send-slider [id value]
+  (send {"id"    id
+         "type"  "SLIDER"
+         "value" value}))
+
+
+(defn send-led [id state]
+  (send {"id"    id
+         "type"  "LED"
+         "state" (string/ascii-upper (string state))}))
+
+
+(defn send-gauge [id value]
+  (send {"id"    id
+         "type"  "GAUGE"
+         "value" value}))
+
+
+(defn send-log [msg]
+  (send {"type"    "LOG"
+         "message" msg}))
+
+
+(defn broadcast [data &opt include-my-peer?]
+  (default include-my-peer? true)
+  (def encoded (buffer/push (json/encode data) "\n"))
+  (log/debug "broadcasting encoded = %n" encoded)
+  ((dyn *broadcast-fn*) encoded include-my-peer?))
+
+
+(defn broadcast-switch [id state &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "SWITCH"
+              "state" (truthy? state)}
+             include-my-peer?))
+
+
+(defn broadcast-slider [id value &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "SLIDER"
+              "value" value}
+             include-my-peer?))
+
+
+(defn broadcast-led [id state &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "LED"
+              "state" (string/ascii-upper (string state))}
+             include-my-peer?))
+
+
+(defn broadcast-gauge [id value &opt include-my-peer?]
+  (broadcast {"id"    id
+              "type"  "GAUGE"
+              "value" value}
+             include-my-peer?))
+
+
+(defn broadcast-log [msg &opt include-my-peer?]
+  (broadcast {"type"    "LOG"
+              "message" msg}
+             include-my-peer?))
+
+
+(defn get-peer []
+  (dyn *peer*))
 
 
 (defn decode-json-values [buf &opt ret-arr]
@@ -641,11 +727,6 @@
       (net/send-to conn peer-addr buf))))
 
 
-(defdyn *peer*)
-(defdyn *send-fn*)
-(defdyn *broadcast-fn*)
-
-
 (defn handle-connection [conn dispatch on-connection on-disconnection]
   (def peer (net/peername conn))
   (log/debug "= NEW CONNECTION from %n =" peer)
@@ -692,11 +773,40 @@
       (on-disconnection))))
 
 
-#
-# XXX: on-disconnection is currently not used at all, since
-#      datagram "connections" don't actually "disconnect".
-#
-(defn handle-datagram-messages [conn dispatch on-connection on-disconnection]
+(def datagram-peer-activity    @{})
+(def datagram-peer-ttl-workers @{})
+
+
+(defn check-datagram-peer-ttl [ttl on-disconnection]
+  (def peer (get-peer))
+  (log/debug "Datagram peer ttl worker for %n STARTED" peer)
+  (log/debug "Current known peers: %n" (length known-peers))
+  (var stop false)
+
+  (while (not stop)
+    (def now (os/clock :monotonic))
+    (def last-activity (in datagram-peer-activity peer 0))
+    (def dt (- now last-activity))
+
+    (if (>= dt ttl)
+      (do
+        (set stop true)
+        (put known-peers               peer nil)
+        (put datagram-peer-ttl-workers peer nil)
+        (put datagram-peer-activity    peer nil)
+        (when on-disconnection
+          # dyn vars are already in place when spawning this worker
+          (on-disconnection)))
+      # else
+      (do
+        (def next-check (- ttl dt))
+        (log/debug "Checking again for %n TTL in %n seconds" peer next-check)
+        (ev/sleep next-check))))
+  (log/debug "Datagram peer ttl worker for %n STOPPED" peer)
+  (log/debug "Current known peers: %n" (length known-peers)))
+
+
+(defn handle-datagram-messages [conn dispatch on-connection on-disconnection ttl]
   (var buf @"")
   (forever
     (def peer-addr (net/recv-from conn 4096 buf))
@@ -705,13 +815,20 @@
     (def send-fn      |(net/send-to conn peer-addr $))
     (def broadcast-fn |(broadcast-datagram peer $1 conn $0))
 
+    (put datagram-peer-activity peer (os/clock :monotonic))
+
     (unless (has-key? known-peers peer)
       (put known-peers peer peer-addr)
       (when on-connection
         (with-dyns [*peer*         peer
                     *send-fn*      send-fn
                     *broadcast-fn* broadcast-fn]
-          (on-connection))))
+          (on-connection)))
+      (def worker
+        (with-dyns [*peer*         peer
+                    *broadcast-fn* broadcast-fn]
+          (ev/spawn (check-datagram-peer-ttl ttl on-disconnection))))
+      (put datagram-peer-ttl-workers peer worker))
 
     (log/debug "---- after read ----")
     (def [decoded remaining-buf]
@@ -731,86 +848,6 @@
       # else
       (buffer/clear buf))
     (log/debug "---- before read ----")))
-
-
-(defn send [data]
-  (def encoded (buffer/push (json/encode data) "\n"))
-  (log/debug "sending encoded = %n" encoded)
-  ((dyn *send-fn*) encoded))
-
-
-(defn send-switch [id state]
-  (send {"id"    id
-         "type"  "SWITCH"
-         "state" (truthy? state)}))
-
-
-(defn send-slider [id value]
-  (send {"id"    id
-         "type"  "SLIDER"
-         "value" value}))
-
-
-(defn send-led [id state]
-  (send {"id"    id
-         "type"  "LED"
-         "state" (string/ascii-upper (string state))}))
-
-
-(defn send-gauge [id value]
-  (send {"id"    id
-         "type"  "GAUGE"
-         "value" value}))
-
-
-(defn send-log [msg]
-  (send {"type"    "LOG"
-         "message" msg}))
-
-
-(defn broadcast [data &opt include-my-peer?]
-  (default include-my-peer? true)
-  (def encoded (buffer/push (json/encode data) "\n"))
-  (log/debug "broadcasting encoded = %n" encoded)
-  ((dyn *broadcast-fn*) encoded include-my-peer?))
-
-
-(defn broadcast-switch [id state &opt include-my-peer?]
-  (broadcast {"id"    id
-              "type"  "SWITCH"
-              "state" (truthy? state)}
-             include-my-peer?))
-
-
-(defn broadcast-slider [id value &opt include-my-peer?]
-  (broadcast {"id"    id
-              "type"  "SLIDER"
-              "value" value}
-             include-my-peer?))
-
-
-(defn broadcast-led [id state &opt include-my-peer?]
-  (broadcast {"id"    id
-              "type"  "LED"
-              "state" (string/ascii-upper (string state))}
-             include-my-peer?))
-
-
-(defn broadcast-gauge [id value &opt include-my-peer?]
-  (broadcast {"id"    id
-              "type"  "GAUGE"
-              "value" value}
-             include-my-peer?))
-
-
-(defn broadcast-log [msg &opt include-my-peer?]
-  (broadcast {"type"    "LOG"
-              "message" msg}
-             include-my-peer?))
-
-
-(defn get-peer []
-  (dyn *peer*))
 
 
 (def server-address-peg
@@ -859,6 +896,12 @@
     :help "Can be udp or tcp. Default: udp"
     :kind :option
     :map keyword}
+
+   "client-ttl"
+   {:short "T"
+    :help "TTL for clients, in seconds. Clients will be disconnected after this period of inactivity. Only affects UDP clients. Default: 60 seconds"
+    :kind :option
+    :map scan-number}
 
    "log-level"
    {:short "l"
@@ -955,6 +998,7 @@
   (def options
     [:server-address
      :server-type
+     :client-ttl
      :log-level])
   # Command line options override values in the config file
   (each op options
@@ -964,12 +1008,13 @@
   merged)
 
 
-(defn start-udp-server [ip port dispatch on-connection on-disconnection]
+(defn start-udp-server [ip port dispatch on-connection on-disconnection ttl]
   (def server (net/listen ip port :datagram))
   (handle-datagram-messages server
                             dispatch
                             on-connection
-                            on-disconnection))
+                            on-disconnection
+                            ttl))
 
 
 (defn main [& _args]
@@ -1056,10 +1101,19 @@
                                     on-disconnection-fn))
 
     :udp
-    (start-udp-server server-ip
-                      server-port
-                      dispatch-fn
-                      on-connection-fn
-                      on-disconnection-fn)
+    (do
+      #
+      # config: client-ttl
+      #
+      (def client-ttl
+        (if-let [ttl (in merged-config :client-ttl)]
+          ttl
+          DEFAULT-DATAGRAM-CLIENT-TTL))
+      (start-udp-server server-ip
+                        server-port
+                        dispatch-fn
+                        on-connection-fn
+                        on-disconnection-fn
+                        client-ttl))
 
     (errorf "unknown server type: %n" server-type)))
