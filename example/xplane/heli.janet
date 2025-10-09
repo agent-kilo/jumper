@@ -64,10 +64,15 @@
 # =================== Dashboard Stuff ===================
 #
 
+(def FEET-PER-METER          3.280839895)
+(def FEET-PER-NM             6076.1154855643)
+(def METERS-PER-SEC-TO-KNOTS 1.9438444924)
+
 (def DASHBOARD-UPDATE-INTERVAL 0.1)  # in seconds
 (def RECV-TIMEOUT              0.5)
 
 (def DATAREF-IAS "sim/flightmodel/position/indicated_airspeed")
+(def DATAREF-GS  "sim/flightmodel/position/groundspeed")
 (def DATAREF-VS  "sim/flightmodel/position/vh_ind_fpm")
 (def DATAREF-AGL "sim/flightmodel/position/y_agl")
 (def DATAREF-MSL "sim/cockpit2/gauges/indicators/altitude_ft_pilot")
@@ -94,6 +99,7 @@
           (log/debug "xpc-worker: alt mode = %n" alt-mode)
           (def dref (:get-dref xpc
                                DATAREF-IAS
+                               DATAREF-GS
                                DATAREF-VS
                                (case alt-mode
                                  :radar      DATAREF-AGL
@@ -103,25 +109,35 @@
                                DATAREF-NAV1-HAS-DME
                                DATAREF-NAV2-DME-DIST
                                DATAREF-NAV2-HAS-DME))
-          (def {DATAREF-IAS ias
-                DATAREF-VS  vs
-                DATAREF-NAV1-DME-DIST nav1-dme-dist
+          (def {DATAREF-IAS ias # in knots
+                DATAREF-GS  gs  # in meters/sec
+                DATAREF-VS  vs  # in feet/min
+                DATAREF-NAV1-DME-DIST nav1-dme-dist # in nautical miles
                 DATAREF-NAV1-HAS-DME  nav1-has-dme
-                DATAREF-NAV2-DME-DIST nav2-dme-dist
+                DATAREF-NAV2-DME-DIST nav2-dme-dist # in nautical miles
                 DATAREF-NAV2-HAS-DME  nav2-has-dme}
             dref)
           (def alt
             (case alt-mode
-              :radar      (* 3.280839895 (in dref DATAREF-AGL)) # y_agl is in meters
+              :radar      (* FEET-PER-METER (in dref DATAREF-AGL)) # y_agl is in meters
               :barometric (in dref DATAREF-MSL)))
+          (def gs-knots (* gs METERS-PER-SEC-TO-KNOTS))
+          (def slope
+            (if (< gs-knots 0.0001)
+              (cond
+                (< vs -0.01) -100
+                (> vs 0.01)  100
+                true         0)
+              (* 100 (/ (* vs 60) FEET-PER-NM gs-knots))))
 
-          (log/debug "xpc-worker: airspeed = %n, vs = %n, alt = %n" ias vs alt)
+          (log/debug "xpc-worker: airspeed = %n, groundspeed = %n, vs = %n, alt = %n, slope = %n" ias gs-knots vs alt slope)
           (log/debug "xpc-worker: nav1-has-dme = %n, nav1-dme-dist = %n" nav1-has-dme nav1-dme-dist)
           (log/debug "xpc-worker: nav2-has-dme = %n, nav2-dme-dist = %n" nav2-has-dme nav2-dme-dist)
 
-          (jumper/send-gauge  "ias" ias)
-          (jumper/send-slider "vs"  vs)
-          (jumper/send-gauge  "alt" alt)
+          (jumper/send-gauge  "ias"   ias)
+          (jumper/send-gauge  "slope" slope)
+          (jumper/send-slider "vs"    vs)
+          (jumper/send-gauge  "alt"   alt)
           (jumper/send-gauge  "nav1-dme-dist" nav1-dme-dist)
           (jumper/send-led    "nav1-has-dme"  (if (= 0 nav1-has-dme) :off :on))
           (jumper/send-gauge  "nav2-dme-dist" nav2-dme-dist)

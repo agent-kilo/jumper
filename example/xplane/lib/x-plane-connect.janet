@@ -19,12 +19,6 @@
   (:close (in self :stream)))
 
 
-(defn int32-to-uint32 [n]
-  (if (neg? n)
-    (+ n (math/pow 2 32))
-    n))
-
-
 (defn x-plane-connect-send-command [self & cmd-and-args]
   (def buf (in self :buffer))
   (buffer/clear buf)
