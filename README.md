@@ -198,11 +198,13 @@ You can call these functions in a handler, or in a fiber spawned by a handler, t
 * `jumper/send-switch`
 * `jumper/send-slider`
 * `jumper/send-led`
+* `jumper/send-gauge`
 * `jumper/send-log`
 * `jumper/broadcast`
 * `jumper/broadcast-switch`
 * `jumper/broadcast-slider`
 * `jumper/broadcast-led`
+* `jumper/broadcast-gauge`
 * `jumper/broadcast-log`
 
 Please see `src/main.janet` and `example/sync-states.janet` for detailed usage info.
