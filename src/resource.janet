@@ -16,11 +16,11 @@
 (def VERSION_MINOR
   "Minor version."
   {:resource :versioninfo}
-  0)
+  1)
 (def VERSION_PATCH
   "Patch level."
   {:resource :versioninfo}
-  1)
+  0)
 (def VERSION_INTERNAL
   "Internal version number."
   {:resource :versioninfo}
