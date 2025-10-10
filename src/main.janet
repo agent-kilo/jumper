@@ -446,7 +446,31 @@
           "RELEASE" (kbd/send-keys (reverse key) :up)
           (errorf "unknown dpad button state: %n" (in msg "state")))))
 
-    (errorf "invalid parsed button or switch id: %n" matched-id)))
+    ["ms" "wheel" wheel-steps]
+    (do
+      (def btn (in msg "button"))
+      (def btn-state (in msg "state"))
+      (when (find |(= $ btn-state) ["PRESS" "CLICK"])
+        (case btn
+          "UP"    (ms/send-wheel "up" wheel-steps)
+          "RIGHT" (ms/send-wheel "right" wheel-steps)
+          "DOWN"  (ms/send-wheel "down" wheel-steps)
+          "LEFT"  (ms/send-wheel "left" wheel-steps)
+          (errorf "unknown dpad button: %n" btn))))
+
+    ["ms" "wheel"]
+    (do
+      (def btn (in msg "button"))
+      (def btn-state (in msg "state"))
+      (when (find |(= $ btn-state) ["PRESS" "CLICK"])
+        (case btn
+          "UP"    (ms/send-wheel "up")
+          "RIGHT" (ms/send-wheel "right")
+          "DOWN"  (ms/send-wheel "down")
+          "LEFT"  (ms/send-wheel "left")
+          (errorf "unknown dpad button: %n" btn))))
+
+    (errorf "invalid parsed dpad id: %n" matched-id)))
 
 
 (defn handle-default-steering-wheel [msg matched route]
@@ -466,7 +490,7 @@
       (vjoy/set-axis dev awheel vjval)
       (vjoy/update dev))
 
-    (errorf "invalid parsed slider id: %n" matched-id)))
+    (errorf "invalid parsed steering wheel id: %n" matched-id)))
 
 
 (defn make-simple-moving-average-filter [k fields]
@@ -599,6 +623,7 @@
   #   vjoy:1:pov:1        (map to first vjoy device, first pov hat)
   #   vjoy:1:btn:1,2,3,4  (map to buttons of first vjoy device, starting from north, in clockwise order)
   #   kbd:ctrl+c,ctrl+v,none,ctrl+x  (map to key combos, starting from north, in clockwise order)
+  #   ms:wheel:240        (map to mouse wheel movement)
   (peg/compile
    ~{:vjoy-prefix "vjoy"
      :vjoy-pov (sequence (capture "pov")
@@ -621,7 +646,13 @@
                        ":"
                        (any (sequence :kbd-combo ","))
                        :kbd-combo)
-     :main (sequence (choice :vjoy-id :kbd-id) -1)}))
+     :ms-prefix "ms"
+     :ms-wheel-steps (replace (capture :d+) ,scan-number)
+     :ms-id (sequence (capture :ms-prefix)
+                      ":"
+                      (capture "wheel")
+                      (opt (sequence ":" :ms-wheel-steps)))
+     :main (sequence (choice :vjoy-id :kbd-id :ms-id) -1)}))
 
 
 (def default-routes

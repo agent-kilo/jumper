@@ -187,6 +187,12 @@ vjoy:<dev-id>:btn:<btn1>[,<btn2>[,<btn3>[,btn4]]]
 kbd:<combo1>[,<combo2>[,<combo3>[,combo4]]]
 ```
 
+**Map up, right, down, left dpad buttons to mouse wheel movement** (`<steps>` is the amount of movement in each direction, which defaults to 120):
+
+```
+ms:wheel[:<steps>]
+```
+
 ---
 
 
