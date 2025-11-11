@@ -26,13 +26,6 @@
     true val))
 
 
-(defn normalized-angle-to-vjoy-axis [val axis dev]
-  (def [axis-min axis-max] (get-in dev [:controls :axes axis]))
-  (def axis-half-range   ($$ (axis-max - axis-min) / 2))
-  (def axis-middle-point ($$ (axis-max + axis-min) / 2))
-  (math/round ($$ axis-middle-point - ,(apply-limit val ACCEL-LIMIT-ANGLE) / ACCEL-LIMIT-ANGLE * axis-half-range)))
-
-
 (defn msg-to-normalized-angles [msg]
   (def {"x" x
         "y" y
@@ -51,11 +44,29 @@
   [long lat])
 
 
+(defn normalized-angle-to-deviation [angle]
+  ($$ ,(apply-limit angle ACCEL-LIMIT-ANGLE) / ACCEL-LIMIT-ANGLE))
+
+
+(defn deviation-to-vjoy-axis [deviation axis dev]
+  (def [axis-min axis-max] (get-in dev [:controls :axes axis]))
+  (def axis-half-range   ($$ (axis-max - axis-min) / 2))
+  (def axis-middle-point ($$ (axis-max + axis-min) / 2))
+  (math/round ($$ axis-middle-point - deviation * axis-half-range)))
+
+
+(defn apply-curve [val]
+  (def sign (if (neg? val) -1 1))
+  (* sign (math/pow (math/abs val) 1.7)))
+
+
 (defn handle-accelerometer [msg matched route]
   (def dev (vjoy/get-device ACCEL-VJOY-DEV-ID))
   (->> msg
        (msg-to-normalized-angles)
-       (map |(normalized-angle-to-vjoy-axis $1 $0 dev) [:x :y])
+       (map |(normalized-angle-to-deviation $0))
+       (map apply-curve)
+       (map |(deviation-to-vjoy-axis $1 $0 dev) [:x :y])
        (map |(vjoy/set-axis dev $0 $1) [:x :y]))
   (vjoy/update dev))
 
