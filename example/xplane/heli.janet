@@ -11,6 +11,8 @@
 # =================== Cyclic Stuff ===================
 #
 
+(var cyclic-curve-exponent 1.7)
+
 (def ACCEL-LONG-AXIS "y")
 (def ACCEL-LAT-AXIS  "x")
 (def ACCEL-LONG-REST-ANGLE ($$ math/pi / 2))
@@ -57,7 +59,7 @@
 
 (defn apply-curve [val]
   (def sign (if (neg? val) -1 1))
-  (* sign (math/pow (math/abs val) 1.7)))
+  (* sign (math/pow (math/abs val) cyclic-curve-exponent)))
 
 
 (defn handle-accelerometer [msg matched route]
@@ -241,6 +243,12 @@
     (:send-dref xpc {dataref 1})))
 
 
+(defn handle-slider-exponent [msg &]
+  (when-let [value (in msg "value")]
+    (log/info "Setting cyclic curve exponent: %n" value)
+    (set cyclic-curve-exponent value)))
+
+
 #
 # =================== Jumper Settings ===================
 #
@@ -276,6 +284,11 @@
       :type    "BUTTON"
       :id      "btn-nav2-audio"
       :handler handle-btn-nav-audio
+     }
+    @{
+      :type    "SLIDER"
+      :id      "slider-exp"
+      :handler handle-slider-exponent
      }
    ])
 
