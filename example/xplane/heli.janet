@@ -8,6 +8,12 @@
 
 
 #
+# =================== Forward Declarations ===================
+#
+(var user-routes nil)
+
+
+#
 # =================== Cyclic Stuff ===================
 #
 
@@ -243,22 +249,39 @@
     (:send-dref xpc {dataref 1})))
 
 
+#
+# =================== Other Components ===================
+#
+
+
 (defn handle-slider-exponent [msg &]
   (when-let [value (in msg "value")]
     (log/info "Setting cyclic curve exponent: %n" value)
     (set cyclic-curve-exponent value)))
 
 
+(def DEFAULT-AVG-FILTER-VALUE-COUNT 2)
+
+
+(defn handle-slider-avg-filter [msg &]
+  (when-let [value (in msg "value")]
+    (def rounded (math/round value))
+    (when (<= 1 rounded)
+      (when-let [acc-route (find |(= "ACCELEROMETER" (in $ :type)) user-routes)]
+        (log/info "Setting avg. filter value count: %n" rounded)
+        (put acc-route :filters [(jumper/make-simple-moving-average-filter rounded ["x" "y" "z"])])))))
+
+
 #
 # =================== Jumper Settings ===================
 #
 
-(def user-routes
+(set user-routes
   @[
     @{
       :type    "ACCELEROMETER"
       :handler handle-accelerometer
-      :filters [(jumper/make-simple-moving-average-filter 2 ["x" "y" "z"])]
+      :filters [(jumper/make-simple-moving-average-filter DEFAULT-AVG-FILTER-VALUE-COUNT ["x" "y" "z"])]
      }
     @{
       :type    "BUTTON"
@@ -289,6 +312,11 @@
       :type    "SLIDER"
       :id      "slider-exp"
       :handler handle-slider-exponent
+     }
+    @{
+      :type    "SLIDER"
+      :id      "slider-avg-filter"
+      :handler handle-slider-avg-filter
      }
    ])
 
