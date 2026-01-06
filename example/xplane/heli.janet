@@ -18,6 +18,11 @@
 #
 
 (var cyclic-curve-exponent 1.7)
+(var cyclic-released false)
+(var cyclic-last-deviations @[0 0])
+(var cyclic-deviation-offsets @[0 0])
+(var accel-last-angles @[0 0])
+(var accel-angle-offsets @[0 0])
 
 (def ACCEL-LONG-AXIS "y")
 (def ACCEL-LAT-AXIS  "x")
@@ -25,13 +30,6 @@
 (def ACCEL-LAT-REST-ANGLE  ($$ math/pi / 2))
 (def ACCEL-LIMIT-ANGLE     ($$ math/pi / 6))
 (def ACCEL-VJOY-DEV-ID     1)
-
-
-(defn apply-limit [val limit]
-  (cond
-    (< val (- limit)) (- limit)
-    (> val limit)     limit
-    true val))
 
 
 (defn msg-to-normalized-angles [msg]
@@ -52,15 +50,24 @@
   [long lat])
 
 
+(defn apply-angle-offsets [angles]
+  (def adjusted-angles (map - angles accel-angle-offsets))
+  (log/debug "adjusted-angles = %n" adjusted-angles)
+  adjusted-angles)
+
+
 (defn normalized-angle-to-deviation [angle]
-  ($$ ,(apply-limit angle ACCEL-LIMIT-ANGLE) / ACCEL-LIMIT-ANGLE))
+  ($$ angle / ACCEL-LIMIT-ANGLE))
 
 
 (defn deviation-to-vjoy-axis [deviation axis dev]
+  (log/debug "deviation for axis %n: %n" axis deviation)
   (def [axis-min axis-max] (get-in dev [:controls :axes axis]))
   (def axis-half-range   ($$ (axis-max - axis-min) / 2))
   (def axis-middle-point ($$ (axis-max + axis-min) / 2))
-  (math/round ($$ axis-middle-point - deviation * axis-half-range)))
+  (min axis-max
+       (max axis-min
+            (math/round ($$ axis-middle-point - deviation * axis-half-range)))))
 
 
 (defn apply-curve [val]
@@ -68,12 +75,22 @@
   (* sign (math/pow (math/abs val) cyclic-curve-exponent)))
 
 
+(defn check-cyclic-release [deviations]
+  (if cyclic-released
+    cyclic-deviation-offsets
+    (map + deviations cyclic-deviation-offsets)))
+
+
 (defn handle-accelerometer [msg matched route]
   (def dev (vjoy/get-device ACCEL-VJOY-DEV-ID))
   (->> msg
        (msg-to-normalized-angles)
+       (set accel-last-angles)
+       (apply-angle-offsets)
        (map |(normalized-angle-to-deviation $0))
        (map apply-curve)
+       (check-cyclic-release)
+       (set cyclic-last-deviations)
        (map |(deviation-to-vjoy-axis $1 $0 dev) [:x :y])
        (map |(vjoy/set-axis dev $0 $1) [:x :y]))
   (vjoy/update dev))
@@ -272,6 +289,36 @@
         (put acc-route :filters [(jumper/make-simple-moving-average-filter rounded ["x" "y" "z"])])))))
 
 
+(defn handle-btn-cyclic-release [msg &]
+  (unless (button-pressed? msg)
+    # Early return
+    (break))
+
+  (if cyclic-released
+    (do
+      (log/info "Cyclic connected")
+      (set cyclic-released false)
+      (log/debug "Setting accel-last-angles: %n" accel-last-angles)
+      (set accel-angle-offsets accel-last-angles))
+
+    # else
+    (do
+      (log/info "Cyclic released")
+      (set cyclic-released true)
+      (log/debug "Setting cyclic-last-deviations: %n" cyclic-last-deviations)
+      (set cyclic-deviation-offsets cyclic-last-deviations))))
+
+
+(defn handle-btn-cyclic-reset [msg &]
+  (unless (button-pressed? msg)
+    # Early return
+    (break))
+
+  (log/info "Cyclic reset")
+  (set accel-angle-offsets @[0 0])
+  (set cyclic-deviation-offsets @[0 0]))
+
+
 #
 # =================== Jumper Settings ===================
 #
@@ -317,6 +364,16 @@
       :type    "SLIDER"
       :id      "slider-avg-filter"
       :handler handle-slider-avg-filter
+     }
+    @{
+      :type    "BUTTON"
+      :id      "btn-cyclic-release"
+      :handler handle-btn-cyclic-release
+     }
+    @{
+      :type    "BUTTON"
+      :id      "btn-cyclic-reset"
+      :handler handle-btn-cyclic-reset
      }
    ])
 
