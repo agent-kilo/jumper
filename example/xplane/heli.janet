@@ -12,6 +12,8 @@
 #
 (var user-routes nil)
 
+(var avg-filter-value-count 2)
+
 
 #
 # =================== Cyclic Stuff ===================
@@ -222,6 +224,12 @@
   (jumper/send-led "led-alt-mode" (if (= :radar dashboard-altimeter-mode) :on :off)))
 
 
+(defn on-connection []
+  (jumper/send-switch "sw-cyclic-release" cyclic-released)
+  (jumper/send-slider "slider-exp" cyclic-curve-exponent)
+  (jumper/send-slider "slider-avg-filter" avg-filter-value-count))
+
+
 (defn on-disconnection []
   (def peer (jumper/get-peer))
   (when-let [w (in dashboard-workers peer)]
@@ -284,29 +292,27 @@
   (when-let [value (in msg "value")]
     (def rounded (math/round value))
     (when (<= 1 rounded)
+      (set avg-filter-value-count rounded)
       (when-let [acc-route (find |(= "ACCELEROMETER" (in $ :type)) user-routes)]
-        (log/info "Setting avg. filter value count: %n" rounded)
-        (put acc-route :filters [(jumper/make-simple-moving-average-filter rounded ["x" "y" "z"])])))))
+        (log/info "Setting avg. filter value count: %n" avg-filter-value-count)
+        (put acc-route
+             :filters
+             [(jumper/make-simple-moving-average-filter avg-filter-value-count ["x" "y" "z"])])))))
 
 
-(defn handle-btn-cyclic-release [msg &]
-  (unless (button-pressed? msg)
-    # Early return
-    (break))
+(defn handle-sw-cyclic-release [msg &]
+  (set cyclic-released (in msg "state"))
 
   (if cyclic-released
     (do
-      (log/info "Cyclic connected")
-      (set cyclic-released false)
-      (log/debug "Setting accel-last-angles: %n" accel-last-angles)
-      (set accel-angle-offsets accel-last-angles))
-
+      (log/info "Cyclic released")
+      (log/debug "Setting cyclic-last-deviations: %n" cyclic-last-deviations)
+      (set cyclic-deviation-offsets cyclic-last-deviations))
     # else
     (do
-      (log/info "Cyclic released")
-      (set cyclic-released true)
-      (log/debug "Setting cyclic-last-deviations: %n" cyclic-last-deviations)
-      (set cyclic-deviation-offsets cyclic-last-deviations))))
+      (log/info "Cyclic connected")
+      (log/debug "Setting accel-last-angles: %n" accel-last-angles)
+      (set accel-angle-offsets accel-last-angles))))
 
 
 (defn handle-btn-cyclic-reset [msg &]
@@ -328,7 +334,7 @@
     @{
       :type    "ACCELEROMETER"
       :handler handle-accelerometer
-      :filters [(jumper/make-simple-moving-average-filter DEFAULT-AVG-FILTER-VALUE-COUNT ["x" "y" "z"])]
+      :filters [(jumper/make-simple-moving-average-filter avg-filter-value-count ["x" "y" "z"])]
      }
     @{
       :type    "BUTTON"
@@ -366,9 +372,9 @@
       :handler handle-slider-avg-filter
      }
     @{
-      :type    "BUTTON"
-      :id      "btn-cyclic-release"
-      :handler handle-btn-cyclic-release
+      :type    "SWITCH"
+      :id      "sw-cyclic-release"
+      :handler handle-sw-cyclic-release
      }
     @{
       :type    "BUTTON"
@@ -380,4 +386,5 @@
 
 (def jumper-config
   {:user-routes      user-routes
+   :on-connection    on-connection
    :on-disconnection on-disconnection})
