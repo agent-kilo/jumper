@@ -33,6 +33,8 @@
 (def ACCEL-LIMIT-ANGLE     ($$ math/pi / 6))
 (def ACCEL-VJOY-DEV-ID     1)
 
+(def CYCLIC-DEVIATION-TRIM-STEP 0.025)
+
 
 (defn msg-to-normalized-angles [msg]
   (def {"x" x
@@ -325,6 +327,27 @@
   (set cyclic-deviation-offsets @[0 0]))
 
 
+(defn handle-dpad-cyclic-trim [msg &]
+  (def {"button" btn
+        "state"  state}
+    msg)
+
+  (when (= state "RELEASE")
+    # Early return
+    (break))
+
+  (var [long-dev lat-dev] cyclic-deviation-offsets)
+
+  (case btn
+    "LEFT"  (+= long-dev CYCLIC-DEVIATION-TRIM-STEP)
+    "RIGHT" (-= long-dev CYCLIC-DEVIATION-TRIM-STEP)
+    "UP"    (+= lat-dev  CYCLIC-DEVIATION-TRIM-STEP)
+    "DOWN"  (-= lat-dev  CYCLIC-DEVIATION-TRIM-STEP))
+
+  (set cyclic-deviation-offsets @[long-dev lat-dev])
+  (log/debug "New cyclic-deviation-offsets: %n" cyclic-deviation-offsets))
+
+
 #
 # =================== Jumper Settings ===================
 #
@@ -380,6 +403,11 @@
       :type    "BUTTON"
       :id      "btn-cyclic-reset"
       :handler handle-btn-cyclic-reset
+     }
+    @{
+      :type    "DPAD"
+      :id      "dpad-cyclic-trim"
+      :handler handle-dpad-cyclic-trim
      }
    ])
 
